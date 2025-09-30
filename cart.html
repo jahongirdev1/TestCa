@@ -3,15 +3,15 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Уютное Кафе — Меню и заказ онлайн</title>
-    <meta name="description" content="Уютное кафе с домашней атмосферой. Заказывайте изысканные блюда, напитки и десерты онлайн.">
+    <title>Корзина — Уютное Кафе</title>
+    <meta name="description" content="Ваш заказ в Уютном кафе. Изменяйте количество блюд и оформляйте доставку онлайн.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <script src="script.js" defer></script>
   </head>
-  <body data-page="home">
+  <body data-page="cart">
     <header class="site-header">
       <div class="container header-inner">
         <a class="logo" href="index.html">
@@ -28,7 +28,7 @@
             <span class="logo-subtitle">Вкус домашнего уюта</span>
           </span>
         </a>
-        <a class="icon-button cart-button" href="cart.html" aria-label="Перейти в корзину">
+        <a class="icon-button cart-button" href="cart.html" aria-label="Корзина">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="9" cy="21" r="1"></circle>
             <circle cx="19" cy="21" r="1"></circle>
@@ -40,40 +40,39 @@
       </div>
     </header>
 
-    <main>
-      <section class="hero container">
-        <div class="hero-card">
-          <h2>Добро пожаловать в наше кафе</h2>
-          <p>Насладитесь изысканными блюдами и атмосферой домашнего уюта</p>
-        </div>
+    <main class="container cart-page">
+      <a class="button button-outline back-button" href="index.html">
+        <span class="button-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </span>
+        <span>Назад к меню</span>
+      </a>
+
+      <section id="emptyCart" class="empty-cart" hidden>
+        <h1>Корзина пуста</h1>
+        <p>Добавьте блюда из меню, чтобы сделать заказ.</p>
+        <a class="button button-primary" href="index.html">Перейти к меню</a>
       </section>
 
-      <section class="container categories-section">
-        <div class="carousel-wrapper">
-          <button class="carousel-arrow left" id="carouselLeft" type="button" aria-label="Прокрутить категории влево">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="15 18 9 12 15 6"></polyline>
-            </svg>
-          </button>
-          <div class="category-carousel" id="categoryCarousel">
-            <div class="category-track" id="categoryTrack"></div>
-          </div>
-          <button class="carousel-arrow right" id="carouselRight" type="button" aria-label="Прокрутить категории вправо">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="9 18 15 12 9 6"></polyline>
-            </svg>
-          </button>
-        </div>
-      </section>
+      <section id="cartContent" class="cart-content" hidden>
+        <header class="cart-header">
+          <h1>Ваш заказ</h1>
+          <a class="button button-outline" href="index.html">Продолжить выбор</a>
+        </header>
 
-      <section class="container menu-section">
-        <div class="menu-header">
-          <h2 id="menuTitle">Все блюда</h2>
-          <span class="menu-count" id="menuCount">0 блюд</span>
-        </div>
-        <div id="menuGrid" class="menu-grid" aria-live="polite"></div>
-        <div id="emptyCategory" class="empty-category" hidden>
-          <p>В этой категории пока нет блюд</p>
+        <div class="cart-layout">
+          <div class="cart-items" id="cartItems"></div>
+          <aside class="order-summary" id="orderSummary">
+            <h2>Итого к оплате</h2>
+            <div class="summary-list" id="summaryList"></div>
+            <div class="summary-total">
+              <span>Общая сумма:</span>
+              <span id="totalAmount">0 ₸</span>
+            </div>
+            <button id="checkoutButton" class="button button-primary" type="button">Оформить заказ</button>
+          </aside>
         </div>
       </section>
     </main>
