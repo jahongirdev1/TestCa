@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Админ-панель — Уютное Кафе</title>
+    <meta name="description" content="Управление категориями и товарами для сайта Уютное Кафе.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script type="module" src="script.js"></script>
+  </head>
+  <body data-page="admin">
+    <div class="admin-page">
+      <section class="admin-auth" id="adminAuth">
+        <div class="admin-auth-card">
+          <div class="admin-auth-header">
+            <h1>Вход в админ-панель</h1>
+            <p>Используйте данные администратора, чтобы продолжить работу</p>
+          </div>
+          <form id="loginForm" class="admin-form" autocomplete="off">
+            <div class="admin-form-field">
+              <label for="login">Логин</label>
+              <input id="login" name="login" type="text" placeholder="Введите логин" required>
+            </div>
+            <div class="admin-form-field">
+              <label for="password">Пароль</label>
+              <input id="password" name="password" type="password" placeholder="Введите пароль" required>
+            </div>
+            <p class="admin-form-error" id="loginError" aria-live="polite"></p>
+            <button type="submit" class="button button-primary admin-submit">Войти</button>
+          </form>
+        </div>
+      </section>
+
+      <div class="admin-layout is-hidden" id="adminPanel">
+        <aside class="admin-sidebar">
+          <div class="admin-brand">
+            <span class="admin-brand-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 8h1.5a2.5 2.5 0 0 1 0 5H18"></path>
+                <path d="M2 8h16v6a6 6 0 0 1-6 6H8a6 6 0 0 1-6-6Z"></path>
+                <path d="M6 2v2"></path>
+                <path d="M10 2v2"></path>
+              </svg>
+            </span>
+            <div>
+              <strong>Уютное Кафе</strong>
+              <span>Панель управления</span>
+            </div>
+          </div>
+          <nav class="admin-nav">
+            <button type="button" class="admin-nav-button" data-section="categories">
+              <span>Категории</span>
+            </button>
+            <button type="button" class="admin-nav-button" data-section="products">
+              <span>Товары</span>
+            </button>
+            <button type="button" class="admin-nav-button" data-section="orders">
+              <span>Заказы</span>
+            </button>
+            <button type="button" class="admin-nav-button" data-section="reports">
+              <span>Отчёты</span>
+            </button>
+          </nav>
+        </aside>
+
+        <main class="admin-content">
+          <header class="admin-toolbar">
+            <h1>Администрирование</h1>
+            <p>Добавляйте категории и товары, чтобы обновлять меню кафе в режиме реального времени</p>
+          </header>
+
+          <div id="adminNotification" class="admin-notification" role="status" aria-live="polite"></div>
+
+          <section class="admin-section" data-section-content="categories">
+            <div class="admin-section-header">
+              <div>
+                <h2>Категории</h2>
+                <p>Создавайте новые категории меню с изображениями</p>
+              </div>
+            </div>
+            <form id="categoryForm" class="admin-form-card" autocomplete="off">
+              <div class="admin-form-grid">
+                <div class="admin-form-field">
+                  <label for="categoryName">Название категории</label>
+                  <input id="categoryName" name="categoryName" type="text" placeholder="Например, «Десерты»" required>
+                </div>
+                <div class="admin-form-field">
+                  <label for="categoryImage">Изображение категории</label>
+                  <input id="categoryImage" name="categoryImage" type="file" accept="image/*" required>
+                  <span class="admin-help-text">Загрузите изображение в формате JPG или PNG</span>
+                </div>
+              </div>
+              <button type="submit" class="button button-primary">Сохранить категорию</button>
+            </form>
+          </section>
+
+          <section class="admin-section is-hidden" data-section-content="products">
+            <div class="admin-section-header">
+              <div>
+                <h2>Товары</h2>
+                <p>Добавляйте блюда и напитки, которые будут отображаться на сайте</p>
+              </div>
+            </div>
+            <form id="productForm" class="admin-form-card" autocomplete="off">
+              <div class="admin-form-grid admin-form-grid--two">
+                <div class="admin-form-field">
+                  <label for="productId">ID товара</label>
+                  <input id="productId" name="productId" type="text" placeholder="Укажите уникальный ID" required>
+                </div>
+                <div class="admin-form-field">
+                  <label for="productCategory">Категория</label>
+                  <select id="productCategory" name="productCategory" required>
+                    <option value="" disabled selected>Выберите категорию</option>
+                  </select>
+                </div>
+                <div class="admin-form-field">
+                  <label for="productName">Название</label>
+                  <input id="productName" name="productName" type="text" placeholder="Например, «Капучино»" required>
+                </div>
+                <div class="admin-form-field">
+                  <label for="productPrice">Цена</label>
+                  <input id="productPrice" name="productPrice" type="number" min="0" step="0.01" placeholder="Цена в тенге" required>
+                </div>
+              </div>
+              <div class="admin-form-grid">
+                <div class="admin-form-field">
+                  <label for="productDescription">Описание</label>
+                  <textarea id="productDescription" name="productDescription" rows="4" placeholder="Краткое описание блюда"></textarea>
+                </div>
+                <div class="admin-form-field">
+                  <label for="productImage">Изображение товара</label>
+                  <input id="productImage" name="productImage" type="file" accept="image/*" required>
+                  <span class="admin-help-text">Загрузите изображение хорошего качества</span>
+                </div>
+              </div>
+              <button type="submit" class="button button-primary">Сохранить товар</button>
+            </form>
+          </section>
+
+          <section class="admin-section is-hidden" data-section-content="orders">
+            <div class="admin-placeholder">
+              <h2>Заказы</h2>
+              <p>Раздел находится в разработке. Скоро здесь появится управление заказами.</p>
+            </div>
+          </section>
+
+          <section class="admin-section is-hidden" data-section-content="reports">
+            <div class="admin-placeholder">
+              <h2>Отчёты</h2>
+              <p>Раздел находится в разработке. Здесь будут аналитика и отчёты.</p>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+  </body>
+</html>

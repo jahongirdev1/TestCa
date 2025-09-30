@@ -1,90 +1,113 @@
-const CATEGORY_DATA = [
-  { name: 'Хлебные изделия', image: 'src/assets/categories/bread.jpg' },
-  { name: 'Завтраки', image: 'src/assets/categories/breakfast.jpg' },
-  { name: 'Детское меню', image: 'src/assets/categories/kids.jpg' },
-  { name: 'Салаты', image: 'src/assets/categories/salads.jpg' },
-  { name: 'Первые блюда', image: 'src/assets/categories/soup.jpg' },
-  { name: 'Вторые блюда', image: 'src/assets/categories/main-course.jpg' },
-  { name: 'Паста', image: 'src/assets/categories/pasta.jpg' },
-  { name: 'Суши', image: 'src/assets/categories/sushi.jpg' },
-  { name: 'Пицца', image: 'src/assets/categories/pizza.jpg' },
-  { name: 'Шашлык', image: 'src/assets/categories/grill.jpg' },
-  { name: 'Гарнир и соусы', image: 'src/assets/categories/sides.jpg' },
-  { name: 'Ассорти', image: 'src/assets/categories/appetizers.jpg' },
-  { name: 'Банкетные блюда', image: 'src/assets/categories/banquet.jpg' },
-  { name: 'Бар', image: 'src/assets/categories/bar.jpg' },
-  { name: 'Десерты', image: 'src/assets/categories/desserts.jpg' }
-];
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import {
+  getFirestore,
+  collection,
+  onSnapshot,
+  addDoc,
+  setDoc,
+  doc,
+  serverTimestamp
+} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import {
+  getStorage,
+  ref,
+  uploadBytes,
+  getDownloadURL
+} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js';
 
-const MENU_ITEMS = [
-  {
-    id: '1',
-    name: 'Капучино классический',
-    description: 'Идеальное сочетание эспрессо и молочной пены',
-    price: 1200,
-    category: 'Бар',
-    image: 'src/assets/cappuccino.jpg'
-  },
-  {
-    id: '2',
-    name: 'Авокадо тост',
-    description: 'Свежий авокадо на хрустящем хлебе с помидорами черри',
-    price: 2100,
-    category: 'Завтраки',
-    image: 'src/assets/avocado-toast.jpg'
-  },
-  {
-    id: '3',
-    name: 'Цезарь с курицей',
-    description: 'Классический салат с курицей гриль, пармезаном и соусом цезарь',
-    price: 2900,
-    category: 'Салаты',
-    image: 'src/assets/caesar-salad.jpg'
-  },
-  {
-    id: '4',
-    name: 'Маргарита',
-    description: 'Традиционная пицца с томатами, моцареллой и базиликом',
-    price: 3400,
-    category: 'Пицца',
-    image: 'src/assets/margherita-pizza.jpg'
-  },
-  {
-    id: '5',
-    name: 'Тирамису',
-    description: 'Нежный итальянский десерт с маскарпоне и кофе',
-    price: 1800,
-    category: 'Десерты',
-    image: 'src/assets/tiramisu.jpg'
-  },
-  {
-    id: '6',
-    name: 'Круассан с шоколадом',
-    description: 'Французский круассан с тающим шоколадом внутри',
-    price: 980,
-    category: 'Хлебные изделия',
-    image: 'src/assets/chocolate-croissant.jpg'
-  },
-  {
-    id: '7',
-    name: 'Детские панкейки',
-    description: 'Мини панкейки с кленовым сиропом и ягодами',
-    price: 1650,
-    category: 'Детское меню',
-    image: 'src/assets/kids-pancakes.jpg'
-  },
-  {
-    id: '8',
-    name: 'Борщ украинский',
-    description: 'Традиционный борщ со сметаной и зеленью',
-    price: 1850,
-    category: 'Первые блюда',
-    image: 'src/assets/borscht.jpg'
-  }
-];
+// TODO: Replace with your Firebase project configuration
+const firebaseConfig = {
+  apiKey: 'YOUR_API_KEY',
+  authDomain: 'YOUR_AUTH_DOMAIN',
+  projectId: 'YOUR_PROJECT_ID',
+  storageBucket: 'YOUR_STORAGE_BUCKET',
+  messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
+  appId: 'YOUR_APP_ID'
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const storage = getStorage(app);
 
 const CART_STORAGE_KEY = 'cozy-cafe-cart';
+const CATEGORY_PLACEHOLDER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160"><rect width="160" height="160" rx="20" fill="%23f5ede3"/><circle cx="80" cy="70" r="26" fill="%23d1b59c"/><path fill="%23d1b59c" d="M40 120h80v4H40z"/></svg>';
+const PRODUCT_PLACEHOLDER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 280"><rect width="400" height="280" rx="32" fill="%23f5ede3"/><circle cx="200" cy="130" r="70" fill="%23d1b59c"/><path fill="%23d1b59c" d="M100 210h200v10H100z"/></svg>';
+const CART_PLACEHOLDER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" rx="18" fill="%23f5ede3"/><circle cx="60" cy="54" r="24" fill="%23d1b59c"/><path fill="%23d1b59c" d="M30 90h60v6H30z"/></svg>';
+
 let cartItems = loadCart();
+let categories = [];
+let menuItems = [];
+
+const categoryListeners = new Set();
+const productListeners = new Set();
+
+function notifyCategoryListeners() {
+  const snapshot = [...categories];
+  categoryListeners.forEach(listener => listener(snapshot));
+}
+
+function notifyProductListeners() {
+  const snapshot = [...menuItems];
+  productListeners.forEach(listener => listener(snapshot));
+}
+
+onSnapshot(
+  collection(db, 'categories'),
+  snapshot => {
+    categories = snapshot.docs
+      .map(docSnapshot => {
+        const data = docSnapshot.data();
+        return {
+          id: docSnapshot.id,
+          name: data?.name?.trim?.() || 'Без названия',
+          image: data?.image || '',
+          createdAt: data?.createdAt || null
+        };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name, 'ru', { sensitivity: 'base' }));
+    notifyCategoryListeners();
+  },
+  error => {
+    console.error('Ошибка при загрузке категорий:', error);
+  }
+);
+
+onSnapshot(
+  collection(db, 'products'),
+  snapshot => {
+    menuItems = snapshot.docs
+      .map(docSnapshot => {
+        const data = docSnapshot.data();
+        const priceValue = typeof data?.price === 'number' ? data.price : Number(data?.price) || 0;
+        return {
+          id: data?.id || docSnapshot.id,
+          name: data?.name?.trim?.() || 'Без названия',
+          description: data?.description?.trim?.() || '',
+          price: priceValue,
+          category: data?.category?.trim?.() || 'Без категории',
+          image: data?.image || '',
+          createdAt: data?.createdAt || null
+        };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name, 'ru', { sensitivity: 'base' }));
+    notifyProductListeners();
+  },
+  error => {
+    console.error('Ошибка при загрузке товаров:', error);
+  }
+);
+
+function onCategoriesChange(listener) {
+  categoryListeners.add(listener);
+  listener([...categories]);
+  return () => categoryListeners.delete(listener);
+}
+
+function onProductsChange(listener) {
+  productListeners.add(listener);
+  listener([...menuItems]);
+  return () => productListeners.delete(listener);
+}
 
 function loadCart() {
   try {
@@ -170,6 +193,8 @@ function getDishWord(count) {
 
 function initHomePage() {
   let selectedCategory = 'Всё';
+  let currentCategories = [];
+  let currentMenuItems = [];
 
   const carousel = document.getElementById('categoryCarousel');
   const track = document.getElementById('categoryTrack');
@@ -180,7 +205,18 @@ function initHomePage() {
   const menuCount = document.getElementById('menuCount');
   const emptyCategory = document.getElementById('emptyCategory');
 
-  function renderCategories() {
+  function getImageSource(src) {
+    return src || CATEGORY_PLACEHOLDER;
+  }
+
+  function renderCategories(list = currentCategories) {
+    currentCategories = list;
+    if (!track) return;
+
+    if (selectedCategory !== 'Всё' && !currentCategories.some(category => category.name === selectedCategory)) {
+      selectedCategory = 'Всё';
+    }
+
     track.innerHTML = '';
 
     const allButton = document.createElement('button');
@@ -197,13 +233,13 @@ function initHomePage() {
     });
     track.appendChild(allButton);
 
-    CATEGORY_DATA.forEach(category => {
+    currentCategories.forEach(category => {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = `category-button${selectedCategory === category.name ? ' selected' : ''}`;
       button.innerHTML = `
         <span class="category-image">
-          <img src="${category.image}" alt="${category.name}">
+          <img src="${getImageSource(category.image)}" alt="${category.name}">
         </span>
         <span class="category-label">${category.name}</span>
       `;
@@ -218,10 +254,13 @@ function initHomePage() {
     requestAnimationFrame(updateArrowState);
   }
 
-  function renderMenu() {
+  function renderMenu(list = currentMenuItems) {
+    currentMenuItems = list;
+    if (!menuGrid || !menuTitle || !menuCount || !emptyCategory) return;
+
     const filteredItems = selectedCategory === 'Всё'
-      ? MENU_ITEMS
-      : MENU_ITEMS.filter(item => item.category === selectedCategory);
+      ? currentMenuItems
+      : currentMenuItems.filter(item => item.category === selectedCategory);
 
     menuTitle.textContent = selectedCategory === 'Всё' ? 'Все блюда' : selectedCategory;
     menuCount.textContent = `${filteredItems.length} ${getDishWord(filteredItems.length)}`;
@@ -251,11 +290,11 @@ function initHomePage() {
     top.className = 'card-top';
     top.innerHTML = `
       <div class="menu-image">
-        <img src="${item.image}" alt="${item.name}">
+        <img src="${item.image || PRODUCT_PLACEHOLDER}" alt="${item.name}">
       </div>
       <div class="menu-body">
         <h3>${item.name}</h3>
-        <p class="menu-description">${item.description}</p>
+        <p class="menu-description">${item.description || 'Описание скоро появится'}</p>
         <div class="menu-meta">
           <span class="menu-price">${formatPrice(item.price)}</span>
           <span class="menu-chip">${item.category}</span>
@@ -366,6 +405,15 @@ function initHomePage() {
 
   window.addEventListener('resize', () => requestAnimationFrame(updateArrowState));
 
+  onCategoriesChange(list => {
+    renderCategories(list);
+    renderMenu();
+  });
+
+  onProductsChange(list => {
+    renderMenu(list);
+  });
+
   renderCategories();
   renderMenu();
   updateArrowState();
@@ -397,10 +445,10 @@ function initCartPage() {
       const card = document.createElement('article');
       card.className = 'cart-card';
       card.innerHTML = `
-        <img src="${item.image}" alt="${item.name}">
+        <img src="${item.image || CART_PLACEHOLDER}" alt="${item.name}">
         <div class="cart-info">
           <h3>${item.name}</h3>
-          <p>${item.description}</p>
+          <p>${item.description || ''}</p>
           <span class="cart-price">${formatPrice(item.price)}</span>
         </div>
       `;
@@ -500,6 +548,194 @@ function initCartPage() {
   renderCart();
 }
 
+async function uploadImage(file, folder) {
+  const storageReference = ref(storage, `${folder}/${Date.now()}_${file.name}`);
+  await uploadBytes(storageReference, file);
+  return getDownloadURL(storageReference);
+}
+
+function setFormLoading(form, isLoading, loadingText = 'Сохранение...') {
+  if (!form) return;
+  const elements = Array.from(form.elements);
+  const submitButton = form.querySelector('[type="submit"]');
+  elements.forEach(element => {
+    if (element instanceof HTMLElement) {
+      element.toggleAttribute('disabled', isLoading);
+    }
+  });
+  if (submitButton) {
+    if (isLoading) {
+      submitButton.dataset.originalText = submitButton.dataset.originalText || submitButton.textContent;
+      submitButton.textContent = loadingText;
+    } else {
+      submitButton.textContent = submitButton.dataset.originalText || submitButton.textContent;
+    }
+  }
+}
+
+function initAdminPage() {
+  const authSection = document.getElementById('adminAuth');
+  const adminPanel = document.getElementById('adminPanel');
+  const loginForm = document.getElementById('loginForm');
+  const loginError = document.getElementById('loginError');
+  const categoryForm = document.getElementById('categoryForm');
+  const productForm = document.getElementById('productForm');
+  const categorySelect = document.getElementById('productCategory');
+  const notification = document.getElementById('adminNotification');
+  const navButtons = adminPanel ? Array.from(adminPanel.querySelectorAll('[data-section]')) : [];
+  const sectionBlocks = adminPanel ? Array.from(adminPanel.querySelectorAll('[data-section-content]')) : [];
+
+  function showNotification(message, type = 'success') {
+    if (!notification) return;
+    notification.textContent = message;
+    notification.dataset.type = type;
+    notification.classList.add('is-visible');
+    setTimeout(() => {
+      notification.classList.remove('is-visible');
+    }, 3000);
+  }
+
+  function switchSection(target) {
+    navButtons.forEach(button => {
+      if (button.dataset.section === target) {
+        button.classList.add('is-active');
+      } else {
+        button.classList.remove('is-active');
+      }
+    });
+
+    sectionBlocks.forEach(section => {
+      if (section.dataset.sectionContent === target) {
+        section.classList.remove('is-hidden');
+      } else {
+        section.classList.add('is-hidden');
+      }
+    });
+  }
+
+  if (loginForm) {
+    loginForm.addEventListener('submit', event => {
+      event.preventDefault();
+      const formData = new FormData(loginForm);
+      const login = formData.get('login')?.toString().trim();
+      const password = formData.get('password')?.toString().trim();
+
+      if (login === 'admin' && password === '1234') {
+        loginForm.reset();
+        if (loginError) {
+          loginError.textContent = '';
+        }
+        authSection?.classList.add('is-hidden');
+        adminPanel?.classList.remove('is-hidden');
+        switchSection('categories');
+      } else if (loginError) {
+        loginError.textContent = 'Неверный логин или пароль';
+      }
+    });
+  }
+
+  navButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      const targetSection = button.dataset.section;
+      if (targetSection) {
+        switchSection(targetSection);
+      }
+    });
+  });
+
+  onCategoriesChange(list => {
+    if (!categorySelect) return;
+    const currentValue = categorySelect.value;
+    categorySelect.innerHTML = '<option value="" disabled selected>Выберите категорию</option>';
+    list.forEach(category => {
+      const option = document.createElement('option');
+      option.value = category.name;
+      option.textContent = category.name;
+      categorySelect.appendChild(option);
+    });
+    if (list.some(category => category.name === currentValue)) {
+      categorySelect.value = currentValue;
+      const placeholder = categorySelect.querySelector('option[value=""]');
+      if (placeholder) {
+        placeholder.selected = false;
+      }
+    }
+  });
+
+  if (categoryForm) {
+    categoryForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      const formData = new FormData(categoryForm);
+      const name = formData.get('categoryName')?.toString().trim();
+      const imageFile = categoryForm.categoryImage?.files?.[0];
+
+      if (!name || !imageFile) {
+        showNotification('Заполните все поля', 'error');
+        return;
+      }
+
+      try {
+        setFormLoading(categoryForm, true, 'Загрузка...');
+        const imageUrl = await uploadImage(imageFile, 'categories');
+        await addDoc(collection(db, 'categories'), {
+          name,
+          image: imageUrl,
+          createdAt: serverTimestamp()
+        });
+        categoryForm.reset();
+        showNotification('Успешно добавлено');
+      } catch (error) {
+        console.error('Ошибка при добавлении категории:', error);
+        showNotification('Не удалось добавить категорию', 'error');
+      } finally {
+        setFormLoading(categoryForm, false);
+      }
+    });
+  }
+
+  if (productForm) {
+    productForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      const formData = new FormData(productForm);
+      const productId = formData.get('productId')?.toString().trim();
+      const name = formData.get('productName')?.toString().trim();
+      const description = formData.get('productDescription')?.toString().trim();
+      const priceValue = Number(formData.get('productPrice'));
+      const category = formData.get('productCategory')?.toString();
+      const imageFile = productForm.productImage?.files?.[0];
+
+      if (!productId || !name || !category || !imageFile || Number.isNaN(priceValue)) {
+        showNotification('Проверьте правильность заполнения формы', 'error');
+        return;
+      }
+
+      try {
+        setFormLoading(productForm, true, 'Загрузка...');
+        const imageUrl = await uploadImage(imageFile, 'products');
+        await setDoc(doc(collection(db, 'products'), productId), {
+          id: productId,
+          name,
+          description: description || '',
+          price: priceValue,
+          category,
+          image: imageUrl,
+          createdAt: serverTimestamp()
+        });
+        productForm.reset();
+        if (categorySelect) {
+          categorySelect.selectedIndex = 0;
+        }
+        showNotification('Успешно добавлено');
+      } catch (error) {
+        console.error('Ошибка при добавлении товара:', error);
+        showNotification('Не удалось добавить товар', 'error');
+      } finally {
+        setFormLoading(productForm, false);
+      }
+    });
+  }
+}
+
 function initialize() {
   updateCartCount();
   const page = document.body?.dataset?.page;
@@ -509,6 +745,13 @@ function initialize() {
   if (page === 'cart') {
     initCartPage();
   }
+  if (page === 'admin') {
+    initAdminPage();
+  }
 }
 
-document.addEventListener('DOMContentLoaded', initialize);
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initialize);
+} else {
+  initialize();
+}
