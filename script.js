@@ -268,7 +268,7 @@ function initHomePage() {
     panel.className = 'quantity-panel';
     panel.innerHTML = `
       <div class="quantity-row">
-        <span class="quantity-label">Количество:</span>
+        <span class="quantity-label">Кол:</span>
         <div class="quantity-controls">
           <button type="button" class="control-button" aria-label="Уменьшить количество">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">

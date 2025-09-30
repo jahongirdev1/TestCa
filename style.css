@@ -363,13 +363,13 @@ button {
 
 @media (min-width: 768px) {
   .menu-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
 @media (min-width: 1024px) {
   .menu-grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
@@ -450,7 +450,7 @@ button {
 }
 
 .menu-price {
-  font-size: 1.5rem;
+  font-size: 1.1rem;
   font-weight: 700;
   color: hsl(var(--coffee-medium));
 }
