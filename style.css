@@ -59,8 +59,8 @@ button {
   position: sticky;
   top: 0;
   z-index: 100;
-  background: var(--color-background);
-  border-bottom: 1px solid var(--color-border);
+  background: #ffffff;
+  box-shadow: rgba(0, 0, 0, 0.1) 0px 2px 6px;
 }
 
 .header-inner {
@@ -164,11 +164,11 @@ button {
 
 .hero-card {
   padding: clamp(2rem, 5vw, 3rem);
-  border-radius: var(--radius-lg);
+  border-radius: 10px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   text-align: center;
-  box-shadow: var(--shadow-card);
+  box-shadow: rgba(0, 0, 0, 0.08) 0px 4px 10px;
 }
 
 .hero-card h2 {
@@ -426,11 +426,13 @@ button {
 .button-primary {
   background: var(--color-accent);
   color: #ffffff;
+  box-shadow: rgba(0, 0, 0, 0.15) 0px 2px 4px;
 }
 
 .button-primary:hover {
   background: var(--color-accent-hover);
   transform: translateY(-1px);
+  box-shadow: rgba(0, 0, 0, 0.18) 0px 4px 8px;
 }
 
 .button-outline {
@@ -961,11 +963,12 @@ body[data-page='admin'] {
 }
 
 .admin-sidebar {
-  background: var(--color-surface);
-  border-right: 1px solid var(--color-border);
-  padding: 2rem 1.5rem;
+  background: #ffffff;
+  border: 1px solid #dddddd;
+  border-radius: 16px;
+  padding: 2rem 1.75rem;
   display: grid;
-  gap: 2rem;
+  gap: 1.75rem;
 }
 
 .admin-brand {
@@ -982,7 +985,8 @@ body[data-page='admin'] {
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  background: rgba(112, 0, 255, 0.12);
+  background: rgba(112, 0, 255, 0.08);
+  border: 1px solid rgba(112, 0, 255, 0.15);
   color: var(--color-accent);
 }
 
@@ -1001,24 +1005,33 @@ body[data-page='admin'] {
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 1rem;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-text);
+  border-radius: 12px;
+  border: 1px solid #dddddd;
+  background: #ffffff;
+  color: #333333;
   font-weight: 600;
   cursor: pointer;
-  transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .admin-nav-button:hover {
+  background: rgba(112, 0, 255, 0.08);
+  border-color: rgba(112, 0, 255, 0.35);
+  color: var(--color-accent);
+}
+
+.admin-nav-button:focus-visible {
+  outline: none;
   border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(112, 0, 255, 0.2);
   color: var(--color-accent);
 }
 
 .admin-nav-button.is-active {
+  background: rgba(112, 0, 255, 0.12);
   border-color: var(--color-accent);
-  background: var(--color-accent);
-  color: #ffffff;
+  color: var(--color-accent);
+  box-shadow: 0 0 0 1px rgba(112, 0, 255, 0.18);
 }
 
 .admin-menu-toggle {
@@ -1384,8 +1397,11 @@ body.admin-sidebar-open {
     transform: translateX(-100%);
     transition: transform 0.3s ease;
     height: 100vh;
+    border: none;
     border-right: 1px solid var(--color-border);
     border-radius: 0;
+    box-shadow: rgba(0, 0, 0, 0.12) 4px 0 16px -6px;
+    padding: 2rem 1.5rem;
     z-index: 10;
   }
 
