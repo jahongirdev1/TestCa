@@ -851,6 +851,83 @@ button {
   color: hsl(var(--foreground));
 }
 
+.checkout-actions {
+  display: grid;
+  gap: 1rem;
+}
+
+.checkout-form {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem;
+  border-radius: var(--radius-md);
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  box-shadow: var(--shadow-soft);
+}
+
+.checkout-form h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.checkout-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.checkout-field {
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+}
+
+.checkout-field span {
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.checkout-field input,
+.checkout-field textarea {
+  border-radius: 0.75rem;
+  border: 1px solid hsl(var(--border));
+  padding: 0.75rem 0.9rem;
+  font-size: 0.95rem;
+  background: hsl(var(--background));
+  resize: vertical;
+}
+
+.checkout-field textarea {
+  min-height: 120px;
+}
+
+.checkout-field--wide {
+  grid-column: 1 / -1;
+}
+
+.checkout-submit {
+  justify-self: stretch;
+}
+
+.checkout-feedback {
+  margin: 0;
+  font-size: 0.9rem;
+  min-height: 1.25rem;
+}
+
+.checkout-feedback[data-type='success'] {
+  color: hsl(152 55% 32%);
+}
+
+.checkout-feedback[data-type='error'] {
+  color: hsl(355 70% 45%);
+}
+
+.checkout-form[hidden] {
+  display: none;
+}
+
 .quantity-controls button svg,
 .remove-button svg,
 .button-icon svg,
@@ -1258,7 +1335,7 @@ body.admin-sidebar-open {
 
 .admin-orders {
   display: grid;
-  gap: 1rem;
+  gap: 1.25rem;
 }
 
 .admin-placeholder {
@@ -1276,35 +1353,90 @@ body.admin-sidebar-open {
   color: hsl(var(--foreground));
 }
 
+.order-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.order-filter-button {
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  border-radius: 999px;
+  padding: 0.45rem 1.1rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: var(--transition-smooth);
+}
+
+.order-filter-button:hover,
+.order-filter-button:focus-visible {
+  outline: none;
+  border-color: hsl(var(--coffee-medium));
+  color: hsl(var(--coffee-medium));
+  transform: translateY(-1px);
+}
+
+.order-filter-button.is-active {
+  background: hsl(var(--coffee-medium));
+  border-color: hsl(var(--coffee-medium));
+  color: hsl(var(--primary-foreground));
+  box-shadow: var(--shadow-button);
+}
+
 .order-card {
   background: hsl(var(--card));
   border-radius: var(--radius-lg);
-  padding: 1.25rem 1.5rem;
+  padding: 1.4rem 1.6rem;
   box-shadow: var(--shadow-card);
   display: grid;
-  gap: 0.5rem;
+  gap: 1rem;
   border: 1px solid hsl(var(--border));
+  position: relative;
 }
 
 .order-card-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  align-items: flex-start;
 }
 
-.order-card-header h3 {
+.order-card-title {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+}
+
+.order-status-indicator {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+  margin-top: 0.35rem;
+  background: hsl(210 16% 80%);
+}
+
+.order-card-title h3 {
   margin: 0;
   font-size: 1.05rem;
 }
 
-.order-card-meta {
-  margin: 0;
+.order-card-title p {
+  margin: 0.25rem 0 0;
   color: hsl(var(--muted-foreground));
   font-size: 0.9rem;
 }
 
-.order-status {
+.order-card-status {
+  display: grid;
+  gap: 0.35rem;
+  justify-items: end;
+}
+
+.order-status-badge {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -1316,27 +1448,108 @@ body.admin-sidebar-open {
   color: hsl(var(--foreground));
 }
 
-.order-status::before {
-  content: '';
-  width: 0.6rem;
-  height: 0.6rem;
-  border-radius: 50%;
-  background: currentColor;
+.order-status-select {
+  border-radius: 0.75rem;
+  border: 1px solid hsl(var(--border));
+  padding: 0.4rem 0.75rem;
+  font-size: 0.9rem;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  min-width: 160px;
 }
 
-.order-status[data-status='accepted'] {
+.order-card-body {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.order-address {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.order-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.9rem;
+}
+
+.order-items li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.order-card-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.order-total {
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.orders-empty {
+  margin-top: 1rem;
+  padding: 1.5rem;
+  border-radius: var(--radius-lg);
+  border: 1px dashed hsl(var(--border));
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--card));
+  text-align: center;
+}
+
+.orders-empty[hidden] {
+  display: none;
+}
+
+.order-card[data-status='new'] .order-status-indicator,
+.order-status-badge.status-new {
+  background: hsl(210 12% 85%);
+  color: hsl(210 22% 30%);
+}
+
+.order-card[data-status='accepted'] .order-status-indicator,
+.order-status-badge.status-accepted {
   background: hsl(42 100% 90%);
-  color: hsl(28 90% 42%);
+  color: hsl(32 94% 38%);
 }
 
-.order-status[data-status='shipped'] {
+.order-card[data-status='shipped'] .order-status-indicator,
+.order-status-badge.status-shipped {
   background: hsl(140 60% 88%);
-  color: hsl(152 55% 32%);
+  color: hsl(152 50% 30%);
 }
 
-.order-status[data-status='canceled'] {
+.order-card[data-status='canceled'] .order-status-indicator,
+.order-status-badge.status-canceled {
   background: hsl(2 82% 90%);
-  color: hsl(355 80% 45%);
+  color: hsl(355 75% 40%);
+}
+
+.order-status-badge.status-new {
+  background: hsl(210 16% 92%);
+}
+
+.order-status-badge.status-accepted {
+  background: hsl(42 100% 92%);
+}
+
+.order-status-badge.status-shipped {
+  background: hsl(140 60% 90%);
+}
+
+.order-status-badge.status-canceled {
+  background: hsl(2 82% 92%);
 }
 
 @media (max-width: 1140px) {
@@ -1394,10 +1607,16 @@ body.admin-sidebar-open {
   }
 
   .order-card-header {
-    align-items: flex-start;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
   }
 
-  .order-status {
-    align-self: flex-start;
+  .order-card-status {
+    justify-items: stretch;
+  }
+
+  .order-card-status .order-status-select {
+    width: 100%;
   }
 }

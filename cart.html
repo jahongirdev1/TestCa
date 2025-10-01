@@ -71,7 +71,28 @@
               <span>Общая сумма:</span>
               <span id="totalAmount">0 ₸</span>
             </div>
-            <button id="checkoutButton" class="button button-primary" type="button">Оформить заказ</button>
+            <div class="checkout-actions">
+              <button id="checkoutButton" class="button button-primary" type="button">Оформить заказ</button>
+              <form id="orderForm" class="checkout-form" autocomplete="off" hidden>
+                <h3>Данные для доставки</h3>
+                <div class="checkout-form-grid">
+                  <label class="checkout-field">
+                    <span>Имя</span>
+                    <input id="customerName" name="name" type="text" placeholder="Введите имя" required>
+                  </label>
+                  <label class="checkout-field">
+                    <span>Номер телефона</span>
+                    <input id="customerPhone" name="phone" type="tel" placeholder="Введите телефон" required>
+                  </label>
+                  <label class="checkout-field checkout-field--wide">
+                    <span>Адрес доставки</span>
+                    <textarea id="customerAddress" name="address" rows="3" placeholder="Укажите улицу, дом и подъезд" required></textarea>
+                  </label>
+                </div>
+                <button type="submit" class="button button-primary checkout-submit">Заказать</button>
+              </form>
+              <p id="orderFeedback" class="checkout-feedback" aria-live="polite"></p>
+            </div>
           </aside>
         </div>
       </section>
