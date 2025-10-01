@@ -6,7 +6,8 @@ import {
   addDoc,
   setDoc,
   doc,
-  serverTimestamp
+  serverTimestamp,
+  updateDoc
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import {
   getStorage,
@@ -29,6 +30,18 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const storage = getStorage(app);
 
+const TELEGRAM_BOT_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN';
+const TELEGRAM_CHAT_ID = 'YOUR_CHAT_ID';
+
+const DEFAULT_ORDER_STATUS = 'Новый';
+const ORDER_STATUS_INFO = {
+  Новый: { key: 'new', label: 'Новый', filterLabel: 'Новые', className: 'status-new' },
+  Принят: { key: 'accepted', label: 'Принят', filterLabel: 'Принятые', className: 'status-accepted' },
+  Отправлен: { key: 'shipped', label: 'Отправлен', filterLabel: 'Отправленные', className: 'status-shipped' },
+  Отменён: { key: 'canceled', label: 'Отменён', filterLabel: 'Отменённые', className: 'status-canceled' }
+};
+const ORDER_STATUS_VALUES = Object.keys(ORDER_STATUS_INFO);
+
 const CART_STORAGE_KEY = 'cozy-cafe-cart';
 const CATEGORY_PLACEHOLDER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160"><rect width="160" height="160" rx="20" fill="%23ffe8d6"/><circle cx="80" cy="70" r="26" fill="%23ff924c"/><path fill="%23ff924c" d="M40 120h80v4H40z"/></svg>';
 const PRODUCT_PLACEHOLDER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 280"><rect width="400" height="280" rx="32" fill="%23ffe8d6"/><circle cx="200" cy="130" r="70" fill="%23ff924c"/><path fill="%23ff924c" d="M100 210h200v10H100z"/></svg>';
@@ -49,6 +62,132 @@ function notifyCategoryListeners() {
 function notifyProductListeners() {
   const snapshot = [...menuItems];
   productListeners.forEach(listener => listener(snapshot));
+}
+
+function getOrderStatusInfo(status) {
+  return ORDER_STATUS_INFO[status] || ORDER_STATUS_INFO[DEFAULT_ORDER_STATUS];
+}
+
+function escapeHtml(value = '') {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function getAlmatyDateMetadata() {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Almaty',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23'
+  });
+  const parts = formatter.formatToParts(now).reduce((acc, part) => {
+    if (part.type !== 'literal') {
+      acc[part.type] = part.value;
+    }
+    return acc;
+  }, {});
+  const iso = `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}+06:00`;
+  return { iso };
+}
+
+function parseOrderDate(value) {
+  if (!value) return null;
+  if (typeof value === 'string') {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+  if (value instanceof Date) {
+    return value;
+  }
+  if (typeof value === 'object' && typeof value?.seconds === 'number') {
+    const milliseconds = value.seconds * 1000 + (value.nanoseconds || 0) / 1e6;
+    return new Date(milliseconds);
+  }
+  return null;
+}
+
+function formatOrderDate(value) {
+  const date = parseOrderDate(value);
+  if (!date) {
+    return '';
+  }
+  return new Intl.DateTimeFormat('ru-RU', {
+    timeZone: 'Asia/Almaty',
+    year: 'numeric',
+    month: 'long',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(date);
+}
+
+function getOrderTimestamp(value) {
+  const date = parseOrderDate(value);
+  return date ? date.getTime() : 0;
+}
+
+async function sendOrderToTelegram(order) {
+  if (
+    !TELEGRAM_BOT_TOKEN ||
+    TELEGRAM_BOT_TOKEN === 'YOUR_TELEGRAM_BOT_TOKEN' ||
+    !TELEGRAM_CHAT_ID ||
+    TELEGRAM_CHAT_ID === 'YOUR_CHAT_ID'
+  ) {
+    return;
+  }
+
+  const items = Array.isArray(order?.items) ? order.items : [];
+  const itemsText = items.length
+    ? items
+        .map(item => {
+          const quantity = Number(item?.quantity) || 0;
+          const priceValue = Number(item?.price) || 0;
+          return `• ${escapeHtml(item?.name || 'Без названия')} × ${quantity} — ${escapeHtml(
+            formatPrice(priceValue * quantity)
+          )}`;
+        })
+        .join('\n')
+    : '—';
+
+  const totalFormatted = formatPrice(order?.totalPrice ?? 0);
+  const timeFormatted = formatOrderDate(order?.createdAt);
+
+  const messageLines = [
+    '🍽 <b>Новый заказ</b>',
+    `👤 <b>Имя:</b> ${escapeHtml(order?.name || '—')}`,
+    `📞 <b>Телефон:</b> ${escapeHtml(order?.phone || '—')}`,
+    `📍 <b>Адрес:</b> ${escapeHtml(order?.address || '—')}`,
+    '',
+    '<b>Товары:</b>',
+    itemsText,
+    '',
+    `💰 <b>Итого:</b> ${escapeHtml(totalFormatted)}`,
+    timeFormatted ? `🕒 <b>Время:</b> ${escapeHtml(timeFormatted)}` : '',
+    order?.id ? `🆔 <b>ID:</b> ${escapeHtml(order.id)}` : ''
+  ].filter(Boolean);
+
+  const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: TELEGRAM_CHAT_ID,
+      text: messageLines.join('\n'),
+      parse_mode: 'HTML'
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Telegram API error: ${response.status}`);
+  }
 }
 
 onSnapshot(
@@ -426,6 +565,75 @@ function initCartPage() {
   const summaryList = document.getElementById('summaryList');
   const totalAmount = document.getElementById('totalAmount');
   const checkoutButton = document.getElementById('checkoutButton');
+  const orderForm = document.getElementById('orderForm');
+  const orderFeedback = document.getElementById('orderFeedback');
+  const nameInput = document.getElementById('customerName');
+  const phoneInput = document.getElementById('customerPhone');
+  const addressInput = document.getElementById('customerAddress');
+
+  let isFormVisible = false;
+  let isSubmittingOrder = false;
+
+  function showOrderFeedback(message = '', type) {
+    if (!orderFeedback) return;
+    orderFeedback.textContent = message;
+    if (type) {
+      orderFeedback.dataset.type = type;
+    } else {
+      delete orderFeedback.dataset.type;
+    }
+  }
+
+  function toggleOrderForm(forceState) {
+    const shouldShow = typeof forceState === 'boolean' ? forceState : !isFormVisible;
+    isFormVisible = shouldShow;
+    if (orderForm) {
+      orderForm.hidden = !shouldShow;
+    }
+    if (checkoutButton) {
+      checkoutButton.textContent = shouldShow ? 'Скрыть форму' : 'Оформить заказ';
+    }
+    if (shouldShow && nameInput) {
+      nameInput.focus();
+    }
+  }
+
+  function setOrderFormLoading(isLoading) {
+    if (orderForm) {
+      const elements = Array.from(orderForm.elements);
+      elements.forEach(element => {
+        if (element instanceof HTMLElement) {
+          element.toggleAttribute('disabled', isLoading);
+        }
+      });
+      const submitButton = orderForm.querySelector('.checkout-submit');
+      if (submitButton) {
+        if (isLoading) {
+          submitButton.dataset.originalText = submitButton.dataset.originalText || submitButton.textContent;
+          submitButton.textContent = 'Отправка...';
+        } else {
+          submitButton.textContent = submitButton.dataset.originalText || submitButton.textContent;
+        }
+      }
+    }
+    isSubmittingOrder = isLoading;
+    if (checkoutButton) {
+      checkoutButton.disabled = isLoading || cartItems.length === 0;
+    }
+  }
+
+  function updateCheckoutAvailability(hasItems) {
+    if (checkoutButton) {
+      checkoutButton.disabled = !hasItems || isSubmittingOrder;
+    }
+    if (!hasItems) {
+      toggleOrderForm(false);
+      showOrderFeedback();
+      if (orderForm) {
+        orderForm.reset();
+      }
+    }
+  }
 
   function renderCart() {
     updateCartCount();
@@ -433,6 +641,8 @@ function initCartPage() {
 
     if (emptyState) emptyState.hidden = hasItems;
     if (cartContent) cartContent.hidden = !hasItems;
+
+    updateCheckoutAvailability(hasItems);
 
     if (!hasItems || !cartContainer || !summaryList || !totalAmount) {
       return;
@@ -528,20 +738,72 @@ function initCartPage() {
 
   if (checkoutButton) {
     checkoutButton.addEventListener('click', () => {
-      if (!cartItems.length) {
+      if (!cartItems.length || isSubmittingOrder) {
         return;
       }
-      checkoutButton.disabled = true;
-      const originalText = checkoutButton.textContent;
-      checkoutButton.textContent = 'Обработка...';
-      setTimeout(() => {
+      toggleOrderForm();
+    });
+  }
+
+  if (orderForm) {
+    orderForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      if (!cartItems.length || isSubmittingOrder) {
+        return;
+      }
+
+      const name = nameInput?.value?.toString().trim() || '';
+      const phone = phoneInput?.value?.toString().trim() || '';
+      const address = addressInput?.value?.toString().trim() || '';
+
+      if (!name || !phone || !address) {
+        showOrderFeedback('Пожалуйста, заполните все поля.', 'error');
+        return;
+      }
+
+      const timestamp = getAlmatyDateMetadata();
+      const orderItems = cartItems.map(item => ({
+        id: item.id,
+        name: item.name,
+        quantity: item.quantity,
+        price: item.price
+      }));
+
+      const orderPayload = {
+        name,
+        phone,
+        address,
+        items: orderItems,
+        totalPrice: getCartTotal(),
+        status: DEFAULT_ORDER_STATUS,
+        createdAt: timestamp.iso
+      };
+
+      try {
+        showOrderFeedback();
+        setOrderFormLoading(true);
+        const docRef = await addDoc(collection(db, 'orders'), orderPayload);
+        try {
+          await sendOrderToTelegram({ ...orderPayload, id: docRef.id });
+        } catch (telegramError) {
+          console.warn('Не удалось отправить заказ в Telegram:', telegramError);
+        }
+        showOrderFeedback('Спасибо! Заказ успешно оформлен.', 'success');
         alert('Спасибо! Ваш заказ оформлен.');
+        toggleOrderForm(false);
         cartItems = [];
         saveCart();
         renderCart();
-        checkoutButton.textContent = originalText;
-        checkoutButton.disabled = false;
-      }, 600);
+        if (orderForm) {
+          orderForm.reset();
+        }
+        showOrderFeedback();
+      } catch (error) {
+        console.error('Ошибка при оформлении заказа:', error);
+        showOrderFeedback('Не удалось отправить заказ. Попробуйте ещё раз.', 'error');
+      } finally {
+        setOrderFormLoading(false);
+      }
     });
   }
 
@@ -589,6 +851,13 @@ function initAdminPage() {
   const menuToggleLabel = menuToggle?.querySelector('.sr-only');
   const sidebarOverlay = document.getElementById('adminSidebarOverlay');
   const mobileBreakpoint = window.matchMedia('(max-width: 1140px)');
+  const orderFilters = document.getElementById('orderFilters');
+  const ordersListContainer = document.getElementById('ordersList');
+  const ordersEmptyState = document.getElementById('ordersEmpty');
+
+  let ordersData = [];
+  let currentOrderFilter = DEFAULT_ORDER_STATUS;
+  let ordersInitialized = false;
 
   function setSidebarState(isOpen) {
     if (!sidebar) return;
@@ -638,6 +907,189 @@ function initAdminPage() {
     setTimeout(() => {
       notification.classList.remove('is-visible');
     }, 3000);
+  }
+
+  function applyStatusStyles(card, badge, indicator, status) {
+    const info = getOrderStatusInfo(status);
+    if (card) {
+      card.dataset.status = info.key;
+    }
+    if (badge) {
+      badge.textContent = info.label;
+      badge.className = `order-status-badge ${info.className}`;
+    }
+    if (indicator) {
+      indicator.className = `order-status-indicator ${info.className}`;
+    }
+  }
+
+  function updateFilterButtons() {
+    if (!orderFilters) return;
+    const buttons = Array.from(orderFilters.querySelectorAll('[data-status]'));
+    buttons.forEach(button => {
+      const statusValue = button.dataset.status;
+      button.classList.toggle('is-active', statusValue === currentOrderFilter);
+    });
+  }
+
+  function renderOrders() {
+    if (!ordersListContainer) return;
+    updateFilterButtons();
+
+    const filtered = ordersData.filter(order => order.status === currentOrderFilter);
+    ordersListContainer.innerHTML = '';
+
+    if (ordersEmptyState) {
+      ordersEmptyState.hidden = !ordersInitialized || filtered.length > 0;
+    }
+
+    filtered.forEach(order => {
+      const statusInfo = getOrderStatusInfo(order.status);
+      const card = document.createElement('article');
+      card.className = 'order-card';
+      card.dataset.status = statusInfo.key;
+
+      const header = document.createElement('header');
+      header.className = 'order-card-header';
+
+      const title = document.createElement('div');
+      title.className = 'order-card-title';
+
+      const indicator = document.createElement('span');
+      indicator.className = `order-status-indicator ${statusInfo.className}`;
+      title.appendChild(indicator);
+
+      const titleText = document.createElement('div');
+      const nameHeading = document.createElement('h3');
+      nameHeading.textContent = order.name || 'Без имени';
+      titleText.appendChild(nameHeading);
+
+      const phoneLine = document.createElement('p');
+      phoneLine.textContent = order.phone || '—';
+      titleText.appendChild(phoneLine);
+
+      title.appendChild(titleText);
+      header.appendChild(title);
+
+      const statusBlock = document.createElement('div');
+      statusBlock.className = 'order-card-status';
+
+      const badge = document.createElement('span');
+      badge.className = `order-status-badge ${statusInfo.className}`;
+      badge.textContent = statusInfo.label;
+      statusBlock.appendChild(badge);
+
+      const statusSelect = document.createElement('select');
+      statusSelect.className = 'order-status-select';
+      ORDER_STATUS_VALUES.forEach(value => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = ORDER_STATUS_INFO[value].label;
+        statusSelect.appendChild(option);
+      });
+      statusSelect.value = order.status;
+      statusBlock.appendChild(statusSelect);
+
+      header.appendChild(statusBlock);
+      card.appendChild(header);
+
+      const body = document.createElement('div');
+      body.className = 'order-card-body';
+
+      const addressParagraph = document.createElement('p');
+      addressParagraph.className = 'order-address';
+      const addressLabel = document.createElement('strong');
+      addressLabel.textContent = 'Адрес:';
+      addressParagraph.append(addressLabel, ` ${order.address || '—'}`);
+      body.appendChild(addressParagraph);
+
+      const itemsList = document.createElement('ul');
+      itemsList.className = 'order-items';
+      const items = Array.isArray(order.items) ? order.items : [];
+      if (items.length === 0) {
+        const itemRow = document.createElement('li');
+        const itemName = document.createElement('span');
+        itemName.textContent = 'Позиции отсутствуют';
+        const itemPrice = document.createElement('span');
+        itemPrice.textContent = '—';
+        itemRow.append(itemName, itemPrice);
+        itemsList.appendChild(itemRow);
+      } else {
+        items.forEach(item => {
+          const itemRow = document.createElement('li');
+          const itemName = document.createElement('span');
+          const quantity = Number(item?.quantity) || 0;
+          itemName.textContent = `${item?.name || 'Без названия'} × ${quantity}`;
+          const itemPrice = document.createElement('span');
+          const priceValue = Number(item?.price) || 0;
+          itemPrice.textContent = formatPrice(priceValue * quantity);
+          itemRow.append(itemName, itemPrice);
+          itemsList.appendChild(itemRow);
+        });
+      }
+      body.appendChild(itemsList);
+
+      card.appendChild(body);
+
+      const footer = document.createElement('div');
+      footer.className = 'order-card-footer';
+
+      const totalSpan = document.createElement('span');
+      totalSpan.className = 'order-total';
+      totalSpan.textContent = `Итого: ${formatPrice(Number(order.totalPrice) || 0)}`;
+      footer.appendChild(totalSpan);
+
+      const dateSpan = document.createElement('span');
+      const formattedDate = formatOrderDate(order.createdAt) || '—';
+      dateSpan.textContent = `Оформлен: ${formattedDate}`;
+      footer.appendChild(dateSpan);
+
+      card.appendChild(footer);
+
+      const controls = {
+        select: statusSelect,
+        card,
+        badge,
+        indicator,
+        currentStatus: order.status,
+        orderId: order.id
+      };
+
+      statusSelect.addEventListener('change', () => {
+        const nextStatus = statusSelect.value;
+        if (!ORDER_STATUS_VALUES.includes(nextStatus)) {
+          statusSelect.value = controls.currentStatus;
+          return;
+        }
+        handleStatusChange(controls.orderId, nextStatus, controls);
+      });
+
+      applyStatusStyles(card, badge, indicator, order.status);
+      ordersListContainer.appendChild(card);
+    });
+  }
+
+  async function handleStatusChange(orderId, nextStatus, controls) {
+    if (!orderId) return;
+    const previousStatus = controls.currentStatus;
+    if (previousStatus === nextStatus) {
+      return;
+    }
+
+    controls.select.disabled = true;
+    try {
+      await updateDoc(doc(db, 'orders', orderId), { status: nextStatus });
+      controls.currentStatus = nextStatus;
+      applyStatusStyles(controls.card, controls.badge, controls.indicator, nextStatus);
+      showNotification(`Статус заказа обновлён на «${nextStatus}»`);
+    } catch (error) {
+      console.error('Ошибка при обновлении статуса заказа:', error);
+      showNotification('Не удалось обновить статус заказа', 'error');
+      controls.select.value = previousStatus;
+      applyStatusStyles(controls.card, controls.badge, controls.indicator, previousStatus);
+    } finally {
+      controls.select.disabled = false;
+    }
   }
 
   function switchSection(target) {
@@ -691,6 +1143,64 @@ function initAdminPage() {
       }
     });
   });
+
+  if (orderFilters) {
+    orderFilters.addEventListener('click', event => {
+      const targetButton = event.target.closest('[data-status]');
+      if (!targetButton) return;
+      const statusValue = targetButton.dataset.status;
+      if (!ORDER_STATUS_VALUES.includes(statusValue)) {
+        return;
+      }
+      currentOrderFilter = statusValue;
+      renderOrders();
+    });
+  }
+
+  updateFilterButtons();
+
+  onSnapshot(
+    collection(db, 'orders'),
+    snapshot => {
+      ordersData = snapshot.docs
+        .map(docSnapshot => {
+          const data = docSnapshot.data();
+          const nameValue = typeof data?.name === 'string' ? data.name.trim() : data?.name;
+          const phoneValue = typeof data?.phone === 'string' ? data.phone.trim() : data?.phone;
+          const addressValue = typeof data?.address === 'string' ? data.address.trim() : data?.address;
+          const statusValue = ORDER_STATUS_VALUES.includes(data?.status) ? data.status : DEFAULT_ORDER_STATUS;
+          const items = Array.isArray(data?.items)
+            ? data.items.map(item => ({
+                id: item?.id || '',
+                name: typeof item?.name === 'string' ? item.name : String(item?.name ?? ''),
+                quantity: Number(item?.quantity) || 0,
+                price: Number(item?.price) || 0
+              }))
+            : [];
+
+          return {
+            id: docSnapshot.id,
+            name: nameValue || 'Без имени',
+            phone: phoneValue || '',
+            address: addressValue || '',
+            items,
+            totalPrice: Number(data?.totalPrice) || 0,
+            status: statusValue,
+            createdAt: data?.createdAt || null
+          };
+        })
+        .sort((a, b) => getOrderTimestamp(b.createdAt) - getOrderTimestamp(a.createdAt));
+
+      ordersInitialized = true;
+      if (!ORDER_STATUS_VALUES.includes(currentOrderFilter)) {
+        currentOrderFilter = DEFAULT_ORDER_STATUS;
+      }
+      renderOrders();
+    },
+    error => {
+      console.error('Ошибка при загрузке заказов:', error);
+    }
+  );
 
   onCategoriesChange(list => {
     if (!categorySelect) return;

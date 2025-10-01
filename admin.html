@@ -154,28 +154,15 @@
                 <p>Отслеживайте статус поступивших и выполненных заказов</p>
               </div>
             </div>
-            <div class="admin-orders">
-              <article class="order-card">
-                <div class="order-card-header">
-                  <h3>Заказ №1204</h3>
-                  <span class="order-status" data-status="accepted">Принят</span>
-                </div>
-                <p class="order-card-meta">3 позиции · 5 600 ₸ · 12 минут назад</p>
-              </article>
-              <article class="order-card">
-                <div class="order-card-header">
-                  <h3>Заказ №1198</h3>
-                  <span class="order-status" data-status="shipped">Отправлен</span>
-                </div>
-                <p class="order-card-meta">2 позиции · 4 300 ₸ · 45 минут назад</p>
-              </article>
-              <article class="order-card">
-                <div class="order-card-header">
-                  <h3>Заказ №1189</h3>
-                  <span class="order-status" data-status="canceled">Отменён</span>
-                </div>
-                <p class="order-card-meta">1 позиция · 1 200 ₸ · 1 час назад</p>
-              </article>
+            <div class="order-filters" id="orderFilters">
+              <button type="button" class="order-filter-button is-active" data-status="Новый">Новые</button>
+              <button type="button" class="order-filter-button" data-status="Принят">Принятые</button>
+              <button type="button" class="order-filter-button" data-status="Отправлен">Отправленные</button>
+              <button type="button" class="order-filter-button" data-status="Отменён">Отменённые</button>
+            </div>
+            <div class="admin-orders" id="ordersList" aria-live="polite"></div>
+            <div class="orders-empty" id="ordersEmpty" hidden>
+              <p>Заказы с выбранным статусом пока не поступали.</p>
             </div>
           </section>
 
