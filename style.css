@@ -966,50 +966,69 @@ body[data-page='admin'] {
   background: #ffffff;
   border: 1px solid #dddddd;
   border-radius: 16px;
-  padding: 2rem 1.75rem;
+  padding: 0.9375rem 1.25rem;
   display: grid;
-  gap: 1.75rem;
+  gap: 1rem;
 }
 
 .admin-brand {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
+  align-items: flex-start;
+  gap: 0.625rem;
   font-weight: 600;
+  padding: 0.625rem 0.75rem;
+  border-radius: 12px;
 }
 
 .admin-brand-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
   background: rgba(112, 0, 255, 0.08);
   border: 1px solid rgba(112, 0, 255, 0.15);
   color: var(--color-accent);
+  margin-top: 1px;
 }
 
 .admin-brand-icon svg {
   width: 24px;
   height: 24px;
 }
+.admin-brand > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  line-height: 1.2;
+}
+.admin-brand strong {
+  font-size: 1rem;
+}
+.admin-brand span {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
 
 .admin-nav {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.5rem;
 }
 
 .admin-nav-button {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  border-radius: 12px;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 10px;
   border: 1px solid #dddddd;
   background: #ffffff;
   color: #333333;
   font-weight: 600;
+  font-size: 0.9375rem;
+  text-align: center;
   cursor: pointer;
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
 }
