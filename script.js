@@ -30,9 +30,9 @@ const db = getFirestore(app);
 const storage = getStorage(app);
 
 const CART_STORAGE_KEY = 'cozy-cafe-cart';
-const CATEGORY_PLACEHOLDER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160"><rect width="160" height="160" rx="20" fill="%23f5ede3"/><circle cx="80" cy="70" r="26" fill="%23d1b59c"/><path fill="%23d1b59c" d="M40 120h80v4H40z"/></svg>';
-const PRODUCT_PLACEHOLDER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 280"><rect width="400" height="280" rx="32" fill="%23f5ede3"/><circle cx="200" cy="130" r="70" fill="%23d1b59c"/><path fill="%23d1b59c" d="M100 210h200v10H100z"/></svg>';
-const CART_PLACEHOLDER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" rx="18" fill="%23f5ede3"/><circle cx="60" cy="54" r="24" fill="%23d1b59c"/><path fill="%23d1b59c" d="M30 90h60v6H30z"/></svg>';
+const CATEGORY_PLACEHOLDER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160"><rect width="160" height="160" rx="20" fill="%23ffe8d6"/><circle cx="80" cy="70" r="26" fill="%23ff924c"/><path fill="%23ff924c" d="M40 120h80v4H40z"/></svg>';
+const PRODUCT_PLACEHOLDER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 280"><rect width="400" height="280" rx="32" fill="%23ffe8d6"/><circle cx="200" cy="130" r="70" fill="%23ff924c"/><path fill="%23ff924c" d="M100 210h200v10H100z"/></svg>';
+const CART_PLACEHOLDER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" rx="18" fill="%23ffe8d6"/><circle cx="60" cy="54" r="24" fill="%23ffb347"/><path fill="%23ffb347" d="M30 90h60v6H30z"/></svg>';
 
 let cartItems = loadCart();
 let categories = [];
@@ -584,6 +584,51 @@ function initAdminPage() {
   const notification = document.getElementById('adminNotification');
   const navButtons = adminPanel ? Array.from(adminPanel.querySelectorAll('[data-section]')) : [];
   const sectionBlocks = adminPanel ? Array.from(adminPanel.querySelectorAll('[data-section-content]')) : [];
+  const sidebar = document.getElementById('adminSidebar');
+  const menuToggle = document.getElementById('adminMenuToggle');
+  const menuToggleLabel = menuToggle?.querySelector('.sr-only');
+  const sidebarOverlay = document.getElementById('adminSidebarOverlay');
+  const mobileBreakpoint = window.matchMedia('(max-width: 1140px)');
+
+  function setSidebarState(isOpen) {
+    if (!sidebar) return;
+    sidebar.classList.toggle('is-open', Boolean(isOpen));
+    menuToggle?.classList.toggle('is-open', Boolean(isOpen));
+    sidebarOverlay?.classList.toggle('is-visible', Boolean(isOpen));
+    document.body.classList.toggle('admin-sidebar-open', Boolean(isOpen));
+    if (menuToggle) {
+      menuToggle.setAttribute('aria-expanded', String(Boolean(isOpen)));
+    }
+    if (menuToggleLabel) {
+      menuToggleLabel.textContent = Boolean(isOpen) ? 'Закрыть меню' : 'Открыть меню';
+    }
+  }
+
+  function closeSidebar() {
+    setSidebarState(false);
+  }
+
+  function toggleSidebar() {
+    if (!sidebar) return;
+    const willOpen = !sidebar.classList.contains('is-open');
+    setSidebarState(willOpen);
+  }
+
+  function handleBreakpointChange(event) {
+    if (!event.matches) {
+      closeSidebar();
+    }
+  }
+
+  if (mobileBreakpoint?.addEventListener) {
+    mobileBreakpoint.addEventListener('change', handleBreakpointChange);
+  } else if (mobileBreakpoint?.addListener) {
+    mobileBreakpoint.addListener(handleBreakpointChange);
+  }
+
+  menuToggle?.addEventListener('click', toggleSidebar);
+  sidebarOverlay?.addEventListener('click', closeSidebar);
+  closeSidebar();
 
   function showNotification(message, type = 'success') {
     if (!notification) return;
@@ -611,6 +656,10 @@ function initAdminPage() {
         section.classList.add('is-hidden');
       }
     });
+
+    if (mobileBreakpoint.matches) {
+      closeSidebar();
+    }
   }
 
   if (loginForm) {

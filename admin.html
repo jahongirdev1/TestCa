@@ -35,7 +35,7 @@
       </section>
 
       <div class="admin-layout is-hidden" id="adminPanel">
-        <aside class="admin-sidebar">
+        <aside class="admin-sidebar" id="adminSidebar">
           <div class="admin-brand">
             <span class="admin-brand-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -65,10 +65,17 @@
             </button>
           </nav>
         </aside>
+        <div class="admin-sidebar-overlay" id="adminSidebarOverlay" aria-hidden="true"></div>
 
         <main class="admin-content">
           <header class="admin-toolbar">
-            <h1>Администрирование</h1>
+            <div class="admin-toolbar-row">
+              <button class="admin-menu-toggle" id="adminMenuToggle" type="button" aria-expanded="false" aria-controls="adminSidebar">
+                <span class="admin-menu-toggle-bar" aria-hidden="true"></span>
+                <span class="sr-only">Открыть меню</span>
+              </button>
+              <h1>Администрирование</h1>
+            </div>
             <p>Добавляйте категории и товары, чтобы обновлять меню кафе в режиме реального времени</p>
           </header>
 
@@ -141,9 +148,34 @@
           </section>
 
           <section class="admin-section is-hidden" data-section-content="orders">
-            <div class="admin-placeholder">
-              <h2>Заказы</h2>
-              <p>Раздел находится в разработке. Скоро здесь появится управление заказами.</p>
+            <div class="admin-section-header">
+              <div>
+                <h2>Заказы</h2>
+                <p>Отслеживайте статус поступивших и выполненных заказов</p>
+              </div>
+            </div>
+            <div class="admin-orders">
+              <article class="order-card">
+                <div class="order-card-header">
+                  <h3>Заказ №1204</h3>
+                  <span class="order-status" data-status="accepted">Принят</span>
+                </div>
+                <p class="order-card-meta">3 позиции · 5 600 ₸ · 12 минут назад</p>
+              </article>
+              <article class="order-card">
+                <div class="order-card-header">
+                  <h3>Заказ №1198</h3>
+                  <span class="order-status" data-status="shipped">Отправлен</span>
+                </div>
+                <p class="order-card-meta">2 позиции · 4 300 ₸ · 45 минут назад</p>
+              </article>
+              <article class="order-card">
+                <div class="order-card-header">
+                  <h3>Заказ №1189</h3>
+                  <span class="order-status" data-status="canceled">Отменён</span>
+                </div>
+                <p class="order-card-meta">1 позиция · 1 200 ₸ · 1 час назад</p>
+              </article>
             </div>
           </section>
 
