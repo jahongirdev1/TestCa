@@ -1,5 +1,5 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
-import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-analytics.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics.js";
 import {
   getFirestore,
   collection,
@@ -9,13 +9,7 @@ import {
   doc,
   serverTimestamp,
   updateDoc
-} from 'https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore.js';
-import {
-  getStorage,
-  ref,
-  uploadBytes,
-  getDownloadURL
-} from 'https://www.gstatic.com/firebasejs/12.3.0/firebase-storage.js';
+} from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 // TODO: Replace with your Firebase project configuration
 const firebaseConfig = {
@@ -31,7 +25,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 const db = getFirestore(app);
-const storage = getStorage(app);
 
 const TELEGRAM_BOT_TOKEN = '8002847512:AAFN6L6xzvdvRLdWUnxII5b0ooUppiLptnA';
 const TELEGRAM_CHAT_ID = '758761122';
@@ -53,6 +46,51 @@ const CART_PLACEHOLDER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/
 let cartItems = loadCart();
 let categories = [];
 let menuItems = [];
+
+function sanitizeImageValue(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return '';
+  }
+  if (/^data:image\//i.test(trimmed) || /^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+  return '';
+}
+
+function getImageWithFallback(image, fallback) {
+  const sanitized = sanitizeImageValue(image);
+  return sanitized || fallback;
+}
+
+async function readFileAsDataUrl(file) {
+  if (!(file instanceof Blob)) {
+    throw new Error('Файл изображения не найден');
+  }
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      if (!/^data:image\//i.test(result)) {
+        reject(new Error('Неверный формат изображения'));
+        return;
+      }
+      resolve(result);
+    };
+    reader.onerror = () => {
+      reject(reader.error || new Error('Не удалось прочитать файл'));
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function prepareImageData(file) {
+  const dataUrl = await readFileAsDataUrl(file);
+  return dataUrl;
+}
 
 const categoryListeners = new Set();
 const productListeners = new Set();
@@ -202,7 +240,7 @@ onSnapshot(
         return {
           id: docSnapshot.id,
           name: data?.name?.trim?.() || 'Без названия',
-          image: data?.image || '',
+          image: sanitizeImageValue(data?.image),
           createdAt: data?.createdAt || null
         };
       })
@@ -227,7 +265,7 @@ onSnapshot(
           description: data?.description?.trim?.() || '',
           price: priceValue,
           category: data?.category?.trim?.() || 'Без категории',
-          image: data?.image || '',
+          image: sanitizeImageValue(data?.image),
           createdAt: data?.createdAt || null
         };
       })
@@ -267,7 +305,7 @@ function loadCart() {
       description: item.description,
       price: Number(item.price) || 0,
       category: item.category,
-      image: item.image,
+      image: sanitizeImageValue(item.image),
       quantity: Number(item.quantity) || 1
     }));
   } catch (error) {
@@ -295,7 +333,7 @@ function addToCart(item, quantity) {
   if (existing) {
     existing.quantity += quantity;
   } else {
-    cartItems.push({ ...item, quantity });
+    cartItems.push({ ...item, image: sanitizeImageValue(item.image), quantity });
   }
   saveCart();
 }
@@ -347,10 +385,6 @@ function initHomePage() {
   const menuCount = document.getElementById('menuCount');
   const emptyCategory = document.getElementById('emptyCategory');
 
-  function getImageSource(src) {
-    return src || CATEGORY_PLACEHOLDER;
-  }
-
   function renderCategories(list = currentCategories) {
     currentCategories = list;
     if (!track) return;
@@ -381,7 +415,7 @@ function initHomePage() {
       button.className = `category-button${selectedCategory === category.name ? ' selected' : ''}`;
       button.innerHTML = `
         <span class="category-image">
-          <img src="${getImageSource(category.image)}" alt="${category.name}">
+          <img src="${getImageWithFallback(category.image, CATEGORY_PLACEHOLDER)}" alt="${category.name}">
         </span>
         <span class="category-label">${category.name}</span>
       `;
@@ -432,7 +466,7 @@ function initHomePage() {
     top.className = 'card-top';
     top.innerHTML = `
       <div class="menu-image">
-        <img src="${item.image || PRODUCT_PLACEHOLDER}" alt="${item.name}">
+        <img src="${getImageWithFallback(item.image, PRODUCT_PLACEHOLDER)}" alt="${item.name}">
       </div>
       <div class="menu-body">
         <h3>${item.name}</h3>
@@ -658,7 +692,7 @@ function initCartPage() {
       const card = document.createElement('article');
       card.className = 'cart-card';
       card.innerHTML = `
-        <img src="${item.image || CART_PLACEHOLDER}" alt="${item.name}">
+        <img src="${getImageWithFallback(item.image, CART_PLACEHOLDER)}" alt="${item.name}">
         <div class="cart-info">
           <h3>${item.name}</h3>
           <p>${item.description || ''}</p>
@@ -811,12 +845,6 @@ function initCartPage() {
   }
 
   renderCart();
-}
-
-async function uploadImage(file, folder) {
-  const storageReference = ref(storage, `${folder}/${Date.now()}_${file.name}`);
-  await uploadBytes(storageReference, file);
-  return getDownloadURL(storageReference);
 }
 
 function setFormLoading(form, isLoading, loadingText = 'Сохранение...') {
@@ -1238,10 +1266,10 @@ function initAdminPage() {
 
       try {
         setFormLoading(categoryForm, true, 'Загрузка...');
-        const imageUrl = await uploadImage(imageFile, 'categories');
+        const imageData = await prepareImageData(imageFile);
         await addDoc(collection(db, 'categories'), {
           name,
-          image: imageUrl,
+          image: imageData,
           createdAt: serverTimestamp()
         });
         categoryForm.reset();
@@ -1273,14 +1301,14 @@ function initAdminPage() {
 
       try {
         setFormLoading(productForm, true, 'Загрузка...');
-        const imageUrl = await uploadImage(imageFile, 'products');
+        const imageData = await prepareImageData(imageFile);
         await setDoc(doc(collection(db, 'products'), productId), {
           id: productId,
           name,
           description: description || '',
           price: priceValue,
           category,
-          image: imageUrl,
+          image: imageData,
           createdAt: serverTimestamp()
         });
         productForm.reset();
