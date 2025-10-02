@@ -8,7 +8,8 @@ import {
   setDoc,
   doc,
   serverTimestamp,
-  updateDoc
+  updateDoc,
+  deleteDoc
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 // TODO: Replace with your Firebase project configuration
@@ -681,12 +682,17 @@ function initCartPage() {
 
     updateCheckoutAvailability(hasItems);
 
-    if (!hasItems || !cartContainer || !summaryList || !totalAmount) {
+    if (!cartContainer || !summaryList || !totalAmount) {
       return;
     }
 
     cartContainer.innerHTML = '';
     summaryList.innerHTML = '';
+
+    if (!hasItems) {
+      totalAmount.textContent = formatPrice(0);
+      return;
+    }
 
     cartItems.forEach(item => {
       const card = document.createElement('article');
@@ -885,10 +891,264 @@ function initAdminPage() {
   const orderFilters = document.getElementById('orderFilters');
   const ordersListContainer = document.getElementById('ordersList');
   const ordersEmptyState = document.getElementById('ordersEmpty');
+  const categoryListContainer = document.getElementById('categoryList');
+  const categoryEmptyState = document.getElementById('categoryEmpty');
+  const productListContainer = document.getElementById('productList');
+  const productEmptyState = document.getElementById('productEmpty');
 
   let ordersData = [];
   let currentOrderFilter = DEFAULT_ORDER_STATUS;
   let ordersInitialized = false;
+  let editingCategory = null;
+  let editingProduct = null;
+
+  function resetCategoryFormState() {
+    editingCategory = null;
+    if (!categoryForm) return;
+    const imageInput = categoryForm.categoryImage;
+    if (imageInput) {
+      imageInput.value = '';
+      imageInput.setAttribute('required', 'true');
+    }
+  }
+
+  function resetProductFormState() {
+    editingProduct = null;
+    if (!productForm) return;
+    const imageInput = productForm.productImage;
+    if (imageInput) {
+      imageInput.value = '';
+      imageInput.setAttribute('required', 'true');
+    }
+    const idInput = productForm.productId;
+    if (idInput) {
+      idInput.readOnly = false;
+    }
+    if (categorySelect) {
+      const placeholder = categorySelect.querySelector('option[value=""]');
+      if (placeholder) {
+        placeholder.selected = true;
+      }
+    }
+  }
+
+  function renderCategoryList(list = []) {
+    if (!categoryListContainer) return;
+    categoryListContainer.innerHTML = '';
+    const hasItems = Array.isArray(list) && list.length > 0;
+    categoryListContainer.hidden = !hasItems;
+    if (categoryEmptyState) {
+      categoryEmptyState.hidden = hasItems;
+    }
+    if (!hasItems) {
+      return;
+    }
+
+    list.forEach(category => {
+      const card = document.createElement('article');
+      card.className = 'admin-entity-card admin-entity-card--category';
+      card.innerHTML = `
+        <div class="admin-entity-media">
+          <img src="${getImageWithFallback(category.image, CATEGORY_PLACEHOLDER)}" alt="${escapeHtml(category.name)}">
+        </div>
+        <div class="admin-entity-body">
+          <div class="admin-entity-title">
+            <h3>${escapeHtml(category.name)}</h3>
+          </div>
+          <div class="admin-entity-actions">
+            <button type="button" class="button button-outline" data-action="edit">Изменить</button>
+            <button type="button" class="button button-danger" data-action="delete">Удалить</button>
+          </div>
+        </div>
+      `;
+
+      const editButton = card.querySelector('[data-action="edit"]');
+      const deleteButton = card.querySelector('[data-action="delete"]');
+
+      if (editButton) {
+        editButton.addEventListener('click', () => startCategoryEditing(category));
+      }
+      if (deleteButton) {
+        deleteButton.addEventListener('click', () => handleCategoryDelete(category));
+      }
+
+      categoryListContainer.appendChild(card);
+    });
+  }
+
+  function renderProductList(list = []) {
+    if (!productListContainer) return;
+    productListContainer.innerHTML = '';
+    const hasItems = Array.isArray(list) && list.length > 0;
+    productListContainer.hidden = !hasItems;
+    if (productEmptyState) {
+      productEmptyState.hidden = hasItems;
+    }
+    if (!hasItems) {
+      return;
+    }
+
+    list.forEach(product => {
+      const card = document.createElement('article');
+      card.className = 'admin-entity-card';
+      card.innerHTML = `
+        <div class="admin-entity-media">
+          <img src="${getImageWithFallback(product.image, PRODUCT_PLACEHOLDER)}" alt="${escapeHtml(product.name)}">
+        </div>
+        <div class="admin-entity-body">
+          <div class="admin-entity-title">
+            <h3>${escapeHtml(product.name)}</h3>
+            <span class="admin-entity-price">${formatPrice(product.price)}</span>
+          </div>
+          <p class="admin-entity-category">${escapeHtml(product.category)}</p>
+          <div class="admin-entity-actions">
+            <button type="button" class="button button-outline" data-action="edit">Изменить</button>
+            <button type="button" class="button button-danger" data-action="delete">Удалить</button>
+          </div>
+        </div>
+      `;
+
+      const editButton = card.querySelector('[data-action="edit"]');
+      const deleteButton = card.querySelector('[data-action="delete"]');
+
+      if (editButton) {
+        editButton.addEventListener('click', () => startProductEditing(product));
+      }
+      if (deleteButton) {
+        deleteButton.addEventListener('click', () => handleProductDelete(product));
+      }
+
+      productListContainer.appendChild(card);
+    });
+  }
+
+  function startCategoryEditing(category) {
+    if (!categoryForm || !category) return;
+    if (editingCategory?.id === category.id) {
+      categoryForm.reset();
+      showNotification('Редактирование отменено');
+      return;
+    }
+
+    editingCategory = { ...category };
+
+    const nameInput = categoryForm.categoryName;
+    if (nameInput) {
+      nameInput.value = category.name;
+      if (nameInput.focus) {
+        nameInput.focus();
+      }
+      if (nameInput.setSelectionRange) {
+        const length = nameInput.value.length;
+        nameInput.setSelectionRange(length, length);
+      }
+    }
+
+    const imageInput = categoryForm.categoryImage;
+    if (imageInput) {
+      imageInput.removeAttribute('required');
+      imageInput.value = '';
+    }
+
+    if (categoryForm.scrollIntoView) {
+      categoryForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    showNotification(`Категория «${category.name}» загружена для редактирования`);
+  }
+
+  function startProductEditing(product) {
+    if (!productForm || !product) return;
+    if (editingProduct?.id === product.id) {
+      productForm.reset();
+      showNotification('Редактирование отменено');
+      return;
+    }
+
+    editingProduct = { ...product };
+
+    const idInput = productForm.productId;
+    if (idInput) {
+      idInput.value = product.id;
+      idInput.readOnly = true;
+    }
+
+    const nameInput = productForm.productName;
+    if (nameInput) {
+      nameInput.value = product.name;
+    }
+
+    const priceInput = productForm.productPrice;
+    if (priceInput) {
+      priceInput.value = product.price;
+    }
+
+    const descriptionInput = productForm.productDescription;
+    if (descriptionInput) {
+      descriptionInput.value = product.description || '';
+    }
+
+    if (categorySelect) {
+      const optionExists = Array.from(categorySelect.options).some(option => option.value === product.category);
+      if (!optionExists && product.category) {
+        const option = document.createElement('option');
+        option.value = product.category;
+        option.textContent = product.category;
+        categorySelect.appendChild(option);
+      }
+      categorySelect.value = product.category;
+    }
+
+    const imageInput = productForm.productImage;
+    if (imageInput) {
+      imageInput.removeAttribute('required');
+      imageInput.value = '';
+    }
+
+    if (productForm.scrollIntoView) {
+      productForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    showNotification(`Товар «${product.name}» загружен для редактирования`);
+  }
+
+  async function handleCategoryDelete(category) {
+    if (!category?.id) return;
+    const shouldDelete = typeof window !== 'undefined' && typeof window.confirm === 'function'
+      ? window.confirm(`Удалить категорию «${category.name}»?`)
+      : true;
+    if (!shouldDelete) return;
+
+    try {
+      await deleteDoc(doc(db, 'categories', category.id));
+      if (editingCategory?.id === category.id) {
+        categoryForm?.reset();
+      }
+      showNotification('Категория удалена');
+    } catch (error) {
+      console.error('Ошибка при удалении категории:', error);
+      showNotification('Не удалось удалить категорию', 'error');
+    }
+  }
+
+  async function handleProductDelete(product) {
+    if (!product?.id) return;
+    const shouldDelete = typeof window !== 'undefined' && typeof window.confirm === 'function'
+      ? window.confirm(`Удалить товар «${product.name}»?`)
+      : true;
+    if (!shouldDelete) return;
+
+    try {
+      await deleteDoc(doc(db, 'products', product.id));
+      if (editingProduct?.id === product.id) {
+        productForm?.reset();
+      }
+      showNotification('Товар удалён');
+    } catch (error) {
+      console.error('Ошибка при удалении товара:', error);
+      showNotification('Не удалось удалить товар', 'error');
+    }
+  }
 
   function setSidebarState(isOpen) {
     if (!sidebar) return;
@@ -1234,49 +1494,97 @@ function initAdminPage() {
   );
 
   onCategoriesChange(list => {
-    if (!categorySelect) return;
-    const currentValue = categorySelect.value;
-    categorySelect.innerHTML = '<option value="" disabled selected>Выберите категорию</option>';
-    list.forEach(category => {
-      const option = document.createElement('option');
-      option.value = category.name;
-      option.textContent = category.name;
-      categorySelect.appendChild(option);
-    });
-    if (list.some(category => category.name === currentValue)) {
-      categorySelect.value = currentValue;
-      const placeholder = categorySelect.querySelector('option[value=""]');
-      if (placeholder) {
-        placeholder.selected = false;
+    if (categorySelect) {
+      const currentValue = categorySelect.value;
+      categorySelect.innerHTML = '<option value="" disabled selected>Выберите категорию</option>';
+      list.forEach(category => {
+        const option = document.createElement('option');
+        option.value = category.name;
+        option.textContent = category.name;
+        categorySelect.appendChild(option);
+      });
+      if (list.some(category => category.name === currentValue)) {
+        categorySelect.value = currentValue;
+        const placeholder = categorySelect.querySelector('option[value=""]');
+        if (placeholder) {
+          placeholder.selected = false;
+        }
+      }
+    }
+
+    renderCategoryList(list);
+
+    if (editingCategory && !list.some(category => category.id === editingCategory.id)) {
+      if (categoryForm) {
+        categoryForm.reset();
+      } else {
+        editingCategory = null;
+      }
+    }
+  });
+
+  onProductsChange(list => {
+    renderProductList(list);
+
+    if (editingProduct && !list.some(product => product.id === editingProduct.id)) {
+      if (productForm) {
+        productForm.reset();
+      } else {
+        editingProduct = null;
       }
     }
   });
 
   if (categoryForm) {
+    categoryForm.addEventListener('reset', resetCategoryFormState);
     categoryForm.addEventListener('submit', async event => {
       event.preventDefault();
       const formData = new FormData(categoryForm);
       const name = formData.get('categoryName')?.toString().trim();
       const imageFile = categoryForm.categoryImage?.files?.[0];
+      const isEditingCategory = Boolean(editingCategory);
 
-      if (!name || !imageFile) {
+      if (!name) {
         showNotification('Заполните все поля', 'error');
         return;
       }
+      if (!isEditingCategory && !imageFile) {
+        showNotification('Загрузите изображение категории', 'error');
+        return;
+      }
+
+      setFormLoading(categoryForm, true, isEditingCategory ? 'Сохранение...' : 'Загрузка...');
 
       try {
-        setFormLoading(categoryForm, true, 'Загрузка...');
-        const imageData = await prepareImageData(imageFile);
-        await addDoc(collection(db, 'categories'), {
-          name,
-          image: imageData,
-          createdAt: serverTimestamp()
-        });
+        let imageData = editingCategory?.image || '';
+        if (imageFile) {
+          imageData = await prepareImageData(imageFile);
+        }
+        if (!imageData) {
+          showNotification('Загрузите изображение категории', 'error');
+          return;
+        }
+
+        if (isEditingCategory) {
+          await updateDoc(doc(db, 'categories', editingCategory.id), {
+            name,
+            image: imageData,
+            updatedAt: serverTimestamp()
+          });
+          showNotification('Категория обновлена');
+        } else {
+          await addDoc(collection(db, 'categories'), {
+            name,
+            image: imageData,
+            createdAt: serverTimestamp()
+          });
+          showNotification('Успешно добавлено');
+        }
+
         categoryForm.reset();
-        showNotification('Успешно добавлено');
       } catch (error) {
-        console.error('Ошибка при добавлении категории:', error);
-        showNotification('Не удалось добавить категорию', 'error');
+        console.error('Ошибка при сохранении категории:', error);
+        showNotification('Не удалось сохранить категорию', 'error');
       } finally {
         setFormLoading(categoryForm, false);
       }
@@ -1284,6 +1592,7 @@ function initAdminPage() {
   }
 
   if (productForm) {
+    productForm.addEventListener('reset', resetProductFormState);
     productForm.addEventListener('submit', async event => {
       event.preventDefault();
       const formData = new FormData(productForm);
@@ -1293,32 +1602,60 @@ function initAdminPage() {
       const priceValue = Number(formData.get('productPrice'));
       const category = formData.get('productCategory')?.toString();
       const imageFile = productForm.productImage?.files?.[0];
+      const isEditingProduct = Boolean(editingProduct);
 
-      if (!productId || !name || !category || !imageFile || Number.isNaN(priceValue)) {
+      if (!productId || !name || !category || Number.isNaN(priceValue)) {
         showNotification('Проверьте правильность заполнения формы', 'error');
         return;
       }
+      if (!isEditingProduct && !imageFile) {
+        showNotification('Загрузите изображение товара', 'error');
+        return;
+      }
+      if (isEditingProduct && editingProduct.id !== productId) {
+        showNotification('ID товара нельзя изменять при редактировании', 'error');
+        return;
+      }
+
+      setFormLoading(productForm, true, isEditingProduct ? 'Сохранение...' : 'Загрузка...');
 
       try {
-        setFormLoading(productForm, true, 'Загрузка...');
-        const imageData = await prepareImageData(imageFile);
-        await setDoc(doc(collection(db, 'products'), productId), {
+        let imageData = editingProduct?.image || '';
+        if (imageFile) {
+          imageData = await prepareImageData(imageFile);
+        }
+        if (!imageData) {
+          showNotification('Загрузите изображение товара', 'error');
+          return;
+        }
+
+        const payload = {
           id: productId,
           name,
           description: description || '',
           price: priceValue,
           category,
-          image: imageData,
-          createdAt: serverTimestamp()
-        });
-        productForm.reset();
-        if (categorySelect) {
-          categorySelect.selectedIndex = 0;
+          image: imageData
+        };
+
+        if (isEditingProduct) {
+          await updateDoc(doc(db, 'products', editingProduct.id), {
+            ...payload,
+            updatedAt: serverTimestamp()
+          });
+          showNotification('Товар обновлён');
+        } else {
+          await setDoc(doc(collection(db, 'products'), productId), {
+            ...payload,
+            createdAt: serverTimestamp()
+          });
+          showNotification('Успешно добавлено');
         }
-        showNotification('Успешно добавлено');
+
+        productForm.reset();
       } catch (error) {
-        console.error('Ошибка при добавлении товара:', error);
-        showNotification('Не удалось добавить товар', 'error');
+        console.error('Ошибка при сохранении товара:', error);
+        showNotification('Не удалось сохранить товар', 'error');
       } finally {
         setFormLoading(productForm, false);
       }

@@ -102,6 +102,10 @@
               </div>
               <button type="submit" class="button button-primary">Сохранить категорию</button>
             </form>
+            <div class="admin-entity-list" id="categoryList" aria-live="polite"></div>
+            <div class="orders-empty" id="categoryEmpty" hidden>
+              <p>Категории пока не добавлены.</p>
+            </div>
           </section>
 
           <section class="admin-section is-hidden" data-section-content="products">
@@ -145,6 +149,10 @@
               </div>
               <button type="submit" class="button button-primary">Сохранить товар</button>
             </form>
+            <div class="admin-entity-list" id="productList" aria-live="polite"></div>
+            <div class="orders-empty" id="productEmpty" hidden>
+              <p>Товары пока не добавлены.</p>
+            </div>
           </section>
 
           <section class="admin-section is-hidden" data-section-content="orders">
