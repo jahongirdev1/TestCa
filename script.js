@@ -273,6 +273,10 @@ function syncCartWithProducts(productList) {
     return false;
   }
 
+  if (!Array.isArray(productList) || productList.length === 0) {
+    return false;
+  }
+
   const productMap = new Map(productList.map(product => [String(product.id), product]));
   const nextCartItems = [];
   let hasChanges = false;
@@ -396,29 +400,55 @@ function updateCartCount() {
 }
 
 function addToCart(item, quantity) {
-  const existing = cartItems.find(cartItem => cartItem.id === item.id);
-  if (existing) {
-    existing.quantity += quantity;
-  } else {
-    cartItems.push({ ...item, image: sanitizeImageValue(item.image), quantity });
+  if (!item || typeof item !== 'object') {
+    return;
   }
+
+  cartItems = loadCart();
+
+  const normalizedQuantity = Number.isFinite(Number(quantity))
+    ? Math.max(1, Math.floor(Number(quantity)))
+    : 1;
+
+  const itemId = String(item.id);
+  const existing = cartItems.find(cartItem => cartItem.id === itemId);
+
+  if (existing) {
+    existing.quantity += normalizedQuantity;
+  } else {
+    cartItems.push({
+      id: itemId,
+      name: item.name,
+      description: item.description,
+      price: Number(item.price) || 0,
+      category: item.category,
+      image: sanitizeImageValue(item.image),
+      quantity: normalizedQuantity
+    });
+  }
+
   saveCart();
+  updateCartCount();
 }
 
 function updateCartItemQuantity(id, quantity) {
-  const item = cartItems.find(cartItem => cartItem.id === id);
+  const targetId = String(id);
+  const item = cartItems.find(cartItem => cartItem.id === targetId);
   if (!item) return;
 
-  if (quantity <= 0) {
-    cartItems = cartItems.filter(cartItem => cartItem.id !== id);
+  const nextQuantity = Math.max(0, Math.floor(Number(quantity) || 0));
+
+  if (nextQuantity <= 0) {
+    cartItems = cartItems.filter(cartItem => cartItem.id !== targetId);
   } else {
-    item.quantity = quantity;
+    item.quantity = nextQuantity;
   }
   saveCart();
 }
 
 function removeCartItem(id) {
-  cartItems = cartItems.filter(item => item.id !== id);
+  const targetId = String(id);
+  cartItems = cartItems.filter(item => item.id !== targetId);
   saveCart();
 }
 
@@ -675,6 +705,8 @@ function initCartPage() {
   const phoneInput = document.getElementById('customerPhone');
   const addressInput = document.getElementById('customerAddress');
 
+  cartItems = loadCart();
+
   let isFormVisible = false;
   let isSubmittingOrder = false;
 
@@ -740,6 +772,7 @@ function initCartPage() {
   }
 
   function renderCart() {
+    cartItems = loadCart();
     updateCartCount();
     const hasItems = cartItems.length > 0;
 
