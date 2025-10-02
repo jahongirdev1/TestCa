@@ -1,4 +1,5 @@
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
+import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-analytics.js";
 import {
   getFirestore,
   collection,
@@ -8,30 +9,32 @@ import {
   doc,
   serverTimestamp,
   updateDoc
-} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+} from 'https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore.js';
 import {
   getStorage,
   ref,
   uploadBytes,
   getDownloadURL
-} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js';
+} from 'https://www.gstatic.com/firebasejs/12.3.0/firebase-storage.js';
 
 // TODO: Replace with your Firebase project configuration
 const firebaseConfig = {
-  apiKey: 'YOUR_API_KEY',
-  authDomain: 'YOUR_AUTH_DOMAIN',
-  projectId: 'YOUR_PROJECT_ID',
-  storageBucket: 'YOUR_STORAGE_BUCKET',
-  messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-  appId: 'YOUR_APP_ID'
+  apiKey: "AIzaSyDEiwkA9dqbYTa2EQYXmun5gLsWrRPgah4",
+  authDomain: "cafemenu-f1055.firebaseapp.com",
+  projectId: "cafemenu-f1055",
+  storageBucket: "cafemenu-f1055.firebasestorage.app",
+  messagingSenderId: "32998975721",
+  appId: "1:32998975721:web:ec5c27dd9838b708666878",
+  measurementId: "G-8GFT9NRGM1"
 };
 
 const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
 
-const TELEGRAM_BOT_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN';
-const TELEGRAM_CHAT_ID = 'YOUR_CHAT_ID';
+const TELEGRAM_BOT_TOKEN = '8002847512:AAFN6L6xzvdvRLdWUnxII5b0ooUppiLptnA';
+const TELEGRAM_CHAT_ID = '758761122';
 
 const DEFAULT_ORDER_STATUS = 'Новый';
 const ORDER_STATUS_INFO = {
@@ -138,9 +141,9 @@ function getOrderTimestamp(value) {
 async function sendOrderToTelegram(order) {
   if (
     !TELEGRAM_BOT_TOKEN ||
-    TELEGRAM_BOT_TOKEN === 'YOUR_TELEGRAM_BOT_TOKEN' ||
+    TELEGRAM_BOT_TOKEN === '8002847512:AAFN6L6xzvdvRLdWUnxII5b0ooUppiLptnA' ||
     !TELEGRAM_CHAT_ID ||
-    TELEGRAM_CHAT_ID === 'YOUR_CHAT_ID'
+    TELEGRAM_CHAT_ID === '758761122'
   ) {
     return;
   }
