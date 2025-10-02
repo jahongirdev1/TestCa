@@ -119,23 +119,9 @@ function escapeHtml(value = '') {
 
 function getAlmatyDateMetadata() {
   const now = new Date();
-  const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Almaty',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hourCycle: 'h23'
-  });
-  const parts = formatter.formatToParts(now).reduce((acc, part) => {
-    if (part.type !== 'literal') {
-      acc[part.type] = part.value;
-    }
-    return acc;
-  }, {});
-  const iso = `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}+06:00`;
+  const offsetMs = 6 * 60 * 60 * 1000;
+  const almatyDate = new Date(now.getTime() + offsetMs);
+  const iso = almatyDate.toISOString().replace('Z', '+06:00');
   return { iso };
 }
 
@@ -889,8 +875,7 @@ function initCartPage() {
         } catch (telegramError) {
           console.warn('Не удалось отправить заказ в Telegram:', telegramError);
         }
-        showOrderFeedback('Спасибо! Заказ успешно оформлен.', 'success');
-        alert('Спасибо! Ваш заказ оформлен.');
+        showOrderFeedback('✅ Заказ оформлен!', 'success');
         toggleOrderForm(false);
         cartItems = [];
         saveCart();
@@ -898,7 +883,6 @@ function initCartPage() {
         if (orderForm) {
           orderForm.reset();
         }
-        showOrderFeedback();
       } catch (error) {
         console.error('Ошибка при оформлении заказа:', error);
         showOrderFeedback('Не удалось отправить заказ. Попробуйте ещё раз.', 'error');
