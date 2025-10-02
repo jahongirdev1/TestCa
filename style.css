@@ -542,6 +542,18 @@ button {
   transform: translateY(-2px);
 }
 
+.button-danger {
+  background: hsl(var(--destructive));
+  color: hsl(var(--destructive-foreground));
+  border-color: transparent;
+  box-shadow: var(--shadow-button);
+}
+
+.button-danger:hover {
+  transform: translateY(-2px) scale(1.01);
+  background: hsl(var(--destructive) / 0.9);
+}
+
 .button-icon svg {
   width: 18px;
   height: 18px;
@@ -1336,6 +1348,81 @@ body.admin-sidebar-open {
 .admin-orders {
   display: grid;
   gap: 1.25rem;
+}
+
+.admin-entity-list {
+  display: grid;
+  gap: 1.25rem;
+  margin-top: 0.5rem;
+}
+
+.admin-entity-card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  padding: clamp(1.25rem, 3vw, 1.75rem);
+  border-radius: var(--radius-lg);
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  box-shadow: var(--shadow-card);
+  align-items: center;
+}
+
+.admin-entity-card--category .admin-entity-media {
+  width: 100px;
+  height: 100px;
+}
+
+.admin-entity-media {
+  width: 120px;
+  height: 120px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: hsl(var(--muted));
+  flex-shrink: 0;
+}
+
+.admin-entity-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.admin-entity-body {
+  flex: 1;
+  min-width: 220px;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.admin-entity-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.admin-entity-title h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.admin-entity-price {
+  font-weight: 600;
+  color: hsl(var(--coffee-medium));
+}
+
+.admin-entity-category {
+  margin: 0;
+  font-size: 0.9rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.admin-entity-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
 }
 
 .admin-placeholder {
