@@ -39,7 +39,8 @@ const ORDER_STATUS_INFO = {
 };
 const ORDER_STATUS_VALUES = Object.keys(ORDER_STATUS_INFO);
 
-const CART_STORAGE_KEY = 'cozy-cafe-cart';
+const CART_STORAGE_KEY = 'cart';
+const LEGACY_CART_KEYS = ['cozy-cafe-cart'];
 const CATEGORY_PLACEHOLDER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160"><rect width="160" height="160" rx="20" fill="%23ffe8d6"/><circle cx="80" cy="70" r="26" fill="%23ff924c"/><path fill="%23ff924c" d="M40 120h80v4H40z"/></svg>';
 const PRODUCT_PLACEHOLDER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 280"><rect width="400" height="280" rx="32" fill="%23ffe8d6"/><circle cx="200" cy="130" r="70" fill="%23ff924c"/><path fill="%23ff924c" d="M100 210h200v10H100z"/></svg>';
 const CART_PLACEHOLDER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" rx="18" fill="%23ffe8d6"/><circle cx="60" cy="54" r="24" fill="%23ffb347"/><path fill="%23ffb347" d="M30 90h60v6H30z"/></svg>';
@@ -332,15 +333,29 @@ function onProductsChange(listener) {
 
 function loadCart() {
   try {
-    const stored = localStorage.getItem(CART_STORAGE_KEY);
+    let stored = localStorage.getItem(CART_STORAGE_KEY);
+    let sourceKey = CART_STORAGE_KEY;
+
+    if (!stored) {
+      for (const key of LEGACY_CART_KEYS) {
+        const legacyValue = localStorage.getItem(key);
+        if (legacyValue) {
+          stored = legacyValue;
+          sourceKey = key;
+          break;
+        }
+      }
+    }
+
     if (!stored) {
       return [];
     }
+
     const parsed = JSON.parse(stored);
     if (!Array.isArray(parsed)) {
       return [];
     }
-    return parsed.map(item => ({
+    const normalized = parsed.map(item => ({
       id: String(item.id),
       name: item.name,
       description: item.description,
@@ -349,6 +364,13 @@ function loadCart() {
       image: sanitizeImageValue(item.image),
       quantity: Number(item.quantity) || 1
     }));
+
+    if (sourceKey !== CART_STORAGE_KEY) {
+      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(normalized));
+      localStorage.removeItem(sourceKey);
+    }
+
+    return normalized;
   } catch (error) {
     console.warn('Не удалось загрузить корзину', error);
     return [];
@@ -747,6 +769,7 @@ function initCartPage() {
           <h3>${item.name}</h3>
           <p>${item.description || ''}</p>
           <span class="cart-price">${formatPrice(item.price)}</span>
+          <span class="cart-price cart-line-total">Итого: ${formatPrice(item.price * item.quantity)}</span>
         </div>
       `;
 
