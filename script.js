@@ -234,6 +234,7 @@ async function sendOrderToTelegram(order) {
 
 onSnapshot(
   collection(db, 'categories'),
+  { includeMetadataChanges: true },
   snapshot => {
     categories = snapshot.docs
       .map(docSnapshot => {
@@ -255,6 +256,7 @@ onSnapshot(
 
 onSnapshot(
   collection(db, 'products'),
+  { includeMetadataChanges: true },
   snapshot => {
     menuItems = snapshot.docs
       .map(docSnapshot => {
@@ -271,12 +273,64 @@ onSnapshot(
         };
       })
       .sort((a, b) => a.name.localeCompare(b.name, 'ru', { sensitivity: 'base' }));
+    syncCartWithProducts(menuItems);
     notifyProductListeners();
   },
   error => {
     console.error('Ошибка при загрузке товаров:', error);
   }
 );
+
+function syncCartWithProducts(productList) {
+  if (!Array.isArray(cartItems) || cartItems.length === 0) {
+    return false;
+  }
+
+  const productMap = new Map(productList.map(product => [String(product.id), product]));
+  const nextCartItems = [];
+  let hasChanges = false;
+
+  cartItems.forEach(cartItem => {
+    const product = productMap.get(String(cartItem.id));
+    if (!product) {
+      hasChanges = true;
+      return;
+    }
+
+    const syncedItem = {
+      ...cartItem,
+      name: product.name,
+      description: product.description,
+      price: product.price,
+      category: product.category,
+      image: sanitizeImageValue(product.image) || cartItem.image
+    };
+
+    if (
+      cartItem.name !== syncedItem.name ||
+      cartItem.description !== syncedItem.description ||
+      cartItem.price !== syncedItem.price ||
+      cartItem.category !== syncedItem.category ||
+      cartItem.image !== syncedItem.image
+    ) {
+      hasChanges = true;
+    }
+
+    nextCartItems.push(syncedItem);
+  });
+
+  if (nextCartItems.length !== cartItems.length) {
+    hasChanges = true;
+  }
+
+  if (hasChanges) {
+    cartItems = nextCartItems;
+    saveCart();
+    return true;
+  }
+
+  return false;
+}
 
 function onCategoriesChange(listener) {
   categoryListeners.add(listener);
@@ -316,7 +370,11 @@ function loadCart() {
 }
 
 function saveCart() {
-  localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cartItems));
+  if (cartItems.length > 0) {
+    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cartItems));
+  } else {
+    localStorage.removeItem(CART_STORAGE_KEY);
+  }
   updateCartCount();
 }
 
@@ -849,6 +907,11 @@ function initCartPage() {
       }
     });
   }
+
+  onProductsChange(list => {
+    syncCartWithProducts(list);
+    renderCart();
+  });
 
   renderCart();
 }
