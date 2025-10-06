@@ -1,31 +1,4 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics.js";
-import {
-  getFirestore,
-  collection,
-  onSnapshot,
-  addDoc,
-  setDoc,
-  doc,
-  serverTimestamp,
-  updateDoc,
-  deleteDoc
-} from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-
-// TODO: Replace with your Firebase project configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyDEiwkA9dqbYTa2EQYXmun5gLsWrRPgah4",
-  authDomain: "cafemenu-f1055.firebaseapp.com",
-  projectId: "cafemenu-f1055",
-  storageBucket: "cafemenu-f1055.firebasestorage.app",
-  messagingSenderId: "32998975721",
-  appId: "1:32998975721:web:ec5c27dd9838b708666878",
-  measurementId: "G-8GFT9NRGM1"
-};
-
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
-const db = getFirestore(app);
+const API_BASE_URL = '';
 
 const TELEGRAM_BOT_TOKEN = '8002847512:AAFN6L6xzvdvRLdWUnxII5b0ooUppiLptnA';
 const TELEGRAM_CHAT_ID = '758761122';
@@ -45,9 +18,12 @@ const CATEGORY_PLACEHOLDER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.
 const PRODUCT_PLACEHOLDER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 280"><rect width="400" height="280" rx="32" fill="%23ffe8d6"/><circle cx="200" cy="130" r="70" fill="%23ff924c"/><path fill="%23ff924c" d="M100 210h200v10H100z"/></svg>';
 const CART_PLACEHOLDER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" rx="18" fill="%23ffe8d6"/><circle cx="60" cy="54" r="24" fill="%23ffb347"/><path fill="%23ffb347" d="M30 90h60v6H30z"/></svg>';
 
-let cartItems = loadCart();
 let categories = [];
 let menuItems = [];
+let cartItems = [];
+
+const categoryListeners = new Set();
+const productListeners = new Set();
 
 function sanitizeImageValue(value) {
   if (typeof value !== 'string') {
@@ -60,6 +36,12 @@ function sanitizeImageValue(value) {
   if (/^data:image\//i.test(trimmed) || /^https?:\/\//i.test(trimmed)) {
     return trimmed;
   }
+  if (trimmed.startsWith('/uploads/')) {
+    return trimmed;
+  }
+  if (trimmed.startsWith('uploads/')) {
+    return `/${trimmed}`;
+  }
   return '';
 }
 
@@ -68,54 +50,27 @@ function getImageWithFallback(image, fallback) {
   return sanitized || fallback;
 }
 
-async function readFileAsDataUrl(file) {
-  if (!(file instanceof Blob)) {
-    throw new Error('Файл изображения не найден');
-  }
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = typeof reader.result === 'string' ? reader.result : '';
-      if (!/^data:image\//i.test(result)) {
-        reject(new Error('Неверный формат изображения'));
-        return;
-      }
-      resolve(result);
-    };
-    reader.onerror = () => {
-      reject(reader.error || new Error('Не удалось прочитать файл'));
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
-async function prepareImageData(file) {
-  const dataUrl = await readFileAsDataUrl(file);
-  return dataUrl;
-}
-
-const categoryListeners = new Set();
-const productListeners = new Set();
-
-function notifyCategoryListeners() {
-  const snapshot = [...categories];
-  categoryListeners.forEach(listener => listener(snapshot));
-}
-
-function notifyProductListeners() {
-  const snapshot = [...menuItems];
-  productListeners.forEach(listener => listener(snapshot));
-}
-
-function getOrderStatusInfo(status) {
-  return ORDER_STATUS_INFO[status] || ORDER_STATUS_INFO[DEFAULT_ORDER_STATUS];
-}
-
 function escapeHtml(value = '') {
   return value
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+function formatPrice(value) {
+  return `${Number(value).toLocaleString('ru-RU')} ₸`;
+}
+
+function getDishWord(count) {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'блюдо';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'блюда';
+  return 'блюд';
+}
+
+function getOrderStatusInfo(status) {
+  return ORDER_STATUS_INFO[status] || ORDER_STATUS_INFO[DEFAULT_ORDER_STATUS];
 }
 
 function getAlmatyDateMetadata() {
@@ -136,10 +91,6 @@ function parseOrderDate(value) {
   }
   if (value instanceof Date) {
     return value;
-  }
-  if (typeof value === 'object' && typeof value?.seconds === 'number') {
-    const milliseconds = value.seconds * 1000 + (value.nanoseconds || 0) / 1e6;
-    return new Date(milliseconds);
   }
   return null;
 }
@@ -164,163 +115,14 @@ function getOrderTimestamp(value) {
   return date ? date.getTime() : 0;
 }
 
-async function sendOrderToTelegram(order) {
-  if (
-    !TELEGRAM_BOT_TOKEN ||
-    TELEGRAM_BOT_TOKEN === '8002847512:AAFN6L6xzvdvRLdWUnxII5b0ooUppiLptnA' ||
-    !TELEGRAM_CHAT_ID ||
-    TELEGRAM_CHAT_ID === '758761122'
-  ) {
-    return;
-  }
-
-  const items = Array.isArray(order?.items) ? order.items : [];
-  const itemsText = items.length
-    ? items
-        .map(item => {
-          const quantity = Number(item?.quantity) || 0;
-          const priceValue = Number(item?.price) || 0;
-          return `• ${escapeHtml(item?.name || 'Без названия')} × ${quantity} — ${escapeHtml(
-            formatPrice(priceValue * quantity)
-          )}`;
-        })
-        .join('\n')
-    : '—';
-
-  const totalFormatted = formatPrice(order?.totalPrice ?? 0);
-  const timeFormatted = formatOrderDate(order?.createdAt);
-
-  const messageLines = [
-    '🍽 <b>Новый заказ</b>',
-    `👤 <b>Имя:</b> ${escapeHtml(order?.name || '—')}`,
-    `📞 <b>Телефон:</b> ${escapeHtml(order?.phone || '—')}`,
-    `📍 <b>Адрес:</b> ${escapeHtml(order?.address || '—')}`,
-    '',
-    '<b>Товары:</b>',
-    itemsText,
-    '',
-    `💰 <b>Итого:</b> ${escapeHtml(totalFormatted)}`,
-    timeFormatted ? `🕒 <b>Время:</b> ${escapeHtml(timeFormatted)}` : '',
-    order?.id ? `🆔 <b>ID:</b> ${escapeHtml(order.id)}` : ''
-  ].filter(Boolean);
-
-  const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: TELEGRAM_CHAT_ID,
-      text: messageLines.join('\n'),
-      parse_mode: 'HTML'
-    })
-  });
-
-  if (!response.ok) {
-    throw new Error(`Telegram API error: ${response.status}`);
-  }
+function notifyCategoryListeners() {
+  const snapshot = [...categories];
+  categoryListeners.forEach(listener => listener(snapshot));
 }
 
-onSnapshot(
-  collection(db, 'categories'),
-  { includeMetadataChanges: true },
-  snapshot => {
-    categories = snapshot.docs
-      .map(docSnapshot => {
-        const data = docSnapshot.data();
-        return {
-          id: docSnapshot.id,
-          name: data?.name?.trim?.() || 'Без названия',
-          image: sanitizeImageValue(data?.image),
-          createdAt: data?.createdAt || null
-        };
-      })
-      .sort((a, b) => a.name.localeCompare(b.name, 'ru', { sensitivity: 'base' }));
-    notifyCategoryListeners();
-  },
-  error => {
-    console.error('Ошибка при загрузке категорий:', error);
-  }
-);
-
-onSnapshot(
-  collection(db, 'products'),
-  { includeMetadataChanges: true },
-  snapshot => {
-    menuItems = snapshot.docs
-      .map(docSnapshot => {
-        const data = docSnapshot.data();
-        const priceValue = typeof data?.price === 'number' ? data.price : Number(data?.price) || 0;
-        return {
-          id: data?.id || docSnapshot.id,
-          name: data?.name?.trim?.() || 'Без названия',
-          description: data?.description?.trim?.() || '',
-          price: priceValue,
-          category: data?.category?.trim?.() || 'Без категории',
-          image: sanitizeImageValue(data?.image),
-          createdAt: data?.createdAt || null
-        };
-      })
-      .sort((a, b) => a.name.localeCompare(b.name, 'ru', { sensitivity: 'base' }));
-    syncCartWithProducts(menuItems);
-    notifyProductListeners();
-  },
-  error => {
-    console.error('Ошибка при загрузке товаров:', error);
-  }
-);
-
-function syncCartWithProducts(productList) {
-  if (!Array.isArray(cartItems) || cartItems.length === 0) {
-    return false;
-  }
-
-  if (!Array.isArray(productList) || productList.length === 0) {
-    return false;
-  }
-
-  const productMap = new Map(productList.map(product => [String(product.id), product]));
-  const nextCartItems = [];
-  let hasChanges = false;
-
-  cartItems.forEach(cartItem => {
-    const product = productMap.get(String(cartItem.id));
-    if (!product) {
-      hasChanges = true;
-      return;
-    }
-
-    const syncedItem = {
-      ...cartItem,
-      name: product.name,
-      description: product.description,
-      price: product.price,
-      category: product.category,
-      image: sanitizeImageValue(product.image) || cartItem.image
-    };
-
-    if (
-      cartItem.name !== syncedItem.name ||
-      cartItem.description !== syncedItem.description ||
-      cartItem.price !== syncedItem.price ||
-      cartItem.category !== syncedItem.category ||
-      cartItem.image !== syncedItem.image
-    ) {
-      hasChanges = true;
-    }
-
-    nextCartItems.push(syncedItem);
-  });
-
-  if (nextCartItems.length !== cartItems.length) {
-    hasChanges = true;
-  }
-
-  if (hasChanges) {
-    cartItems = nextCartItems;
-    saveCart();
-    return true;
-  }
-
-  return false;
+function notifyProductListeners() {
+  const snapshot = [...menuItems];
+  productListeners.forEach(listener => listener(snapshot));
 }
 
 function onCategoriesChange(listener) {
@@ -334,7 +136,200 @@ function onProductsChange(listener) {
   listener([...menuItems]);
   return () => productListeners.delete(listener);
 }
+async function apiRequest(path, options = {}) {
+  const response = await fetch(`${API_BASE_URL}${path}`, options);
+  if (!response.ok) {
+    let message = `Ошибка ${response.status}`;
+    try {
+      const data = await response.json();
+      if (data && typeof data.error === 'string') {
+        message = data.error;
+      }
+    } catch (error) {
+      // ignore JSON parse errors
+    }
+    throw new Error(message);
+  }
+  if (response.status === 204) {
+    return null;
+  }
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    return response.json();
+  }
+  return response.text();
+}
 
+function normalizeCategory(data) {
+  return {
+    id: String(data.id),
+    name: data.name,
+    image: sanitizeImageValue(data.image)
+  };
+}
+
+function normalizeProduct(data) {
+  return {
+    id: String(data.id),
+    name: data.name,
+    description: data.description || '',
+    price: Number(data.price) || 0,
+    categoryId: data.categoryId != null ? String(data.categoryId) : '',
+    category: data.category || 'Без категории',
+    image: sanitizeImageValue(data.image)
+  };
+}
+
+function normalizeOrder(data) {
+  return {
+    id: String(data.id),
+    name: data.name || 'Без имени',
+    phone: data.phone || '',
+    address: data.address || '',
+    items: Array.isArray(data.items)
+      ? data.items.map(item => ({
+          id: String(item.id ?? ''),
+          name: item.name || 'Без названия',
+          quantity: Number(item.quantity) || 0,
+          price: Number(item.price) || 0
+        }))
+      : [],
+    totalPrice: Number(data.totalPrice) || 0,
+    status: ORDER_STATUS_VALUES.includes(data.status) ? data.status : DEFAULT_ORDER_STATUS,
+    createdAt: data.createdAt || null
+  };
+}
+
+async function refreshCategories() {
+  try {
+    const data = await apiRequest('/categories');
+    if (!Array.isArray(data)) {
+      categories = [];
+    } else {
+      categories = data.map(normalizeCategory).sort((a, b) =>
+        a.name.localeCompare(b.name, 'ru', { sensitivity: 'base' })
+      );
+    }
+    notifyCategoryListeners();
+  } catch (error) {
+    console.error('Ошибка при загрузке категорий:', error);
+  }
+}
+
+async function refreshProducts() {
+  try {
+    const data = await apiRequest('/products');
+    if (!Array.isArray(data)) {
+      menuItems = [];
+    } else {
+      menuItems = data.map(normalizeProduct).sort((a, b) =>
+        a.name.localeCompare(b.name, 'ru', { sensitivity: 'base' })
+      );
+    }
+    syncCartWithProducts(menuItems);
+    notifyProductListeners();
+  } catch (error) {
+    console.error('Ошибка при загрузке товаров:', error);
+  }
+}
+
+async function fetchOrdersFromServer() {
+  try {
+    const data = await apiRequest('/orders');
+    if (!Array.isArray(data)) {
+      return [];
+    }
+    return data.map(normalizeOrder).sort((a, b) => getOrderTimestamp(b.createdAt) - getOrderTimestamp(a.createdAt));
+  } catch (error) {
+    console.error('Ошибка при загрузке заказов:', error);
+    return [];
+  }
+}
+
+async function createCategoryRequest(name, imageFile) {
+  const formData = new FormData();
+  formData.append('name', name);
+  if (imageFile) {
+    formData.append('image', imageFile);
+  }
+  return apiRequest('/categories', {
+    method: 'POST',
+    body: formData
+  });
+}
+
+async function updateCategoryRequest(id, name, imageFile) {
+  const formData = new FormData();
+  formData.append('name', name);
+  if (imageFile) {
+    formData.append('image', imageFile);
+  }
+  return apiRequest(`/categories/${id}`, {
+    method: 'PUT',
+    body: formData
+  });
+}
+
+async function deleteCategoryRequest(id) {
+  return apiRequest(`/categories/${id}`, { method: 'DELETE' });
+}
+
+async function createProductRequest(product) {
+  const formData = new FormData();
+  if (product.productId) {
+    formData.append('productId', product.productId);
+  }
+  formData.append('name', product.name);
+  formData.append('description', product.description || '');
+  formData.append('price', product.price);
+  if (product.categoryId) {
+    formData.append('categoryId', product.categoryId);
+  }
+  if (product.imageFile) {
+    formData.append('image', product.imageFile);
+  }
+  return apiRequest('/products', {
+    method: 'POST',
+    body: formData
+  });
+}
+
+async function updateProductRequest(id, product) {
+  const formData = new FormData();
+  formData.append('name', product.name);
+  formData.append('description', product.description || '');
+  formData.append('price', product.price);
+  if (product.categoryId) {
+    formData.append('categoryId', product.categoryId);
+  }
+  if (product.imageFile) {
+    formData.append('image', product.imageFile);
+  }
+  return apiRequest(`/products/${id}`, {
+    method: 'PUT',
+    body: formData
+  });
+}
+
+async function deleteProductRequest(id) {
+  return apiRequest(`/products/${id}`, { method: 'DELETE' });
+}
+
+async function submitOrderRequest(order) {
+  return apiRequest('/orders', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(order)
+  });
+}
+
+async function updateOrderStatusRequest(id, status) {
+  return apiRequest(`/orders/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status })
+  });
+}
 function loadCart() {
   try {
     let stored = localStorage.getItem(CART_STORAGE_KEY);
@@ -456,18 +451,134 @@ function getCartTotal() {
   return cartItems.reduce((total, item) => total + item.price * item.quantity, 0);
 }
 
-function formatPrice(value) {
-  return `${Number(value).toLocaleString('ru-RU')} ₸`;
+function syncCartWithProducts(productList) {
+  if (!Array.isArray(cartItems) || cartItems.length === 0) {
+    return false;
+  }
+
+  if (!Array.isArray(productList) || productList.length === 0) {
+    return false;
+  }
+
+  const productMap = new Map(productList.map(product => [String(product.id), product]));
+  const nextCartItems = [];
+  let hasChanges = false;
+
+  cartItems.forEach(cartItem => {
+    const product = productMap.get(String(cartItem.id));
+    if (!product) {
+      hasChanges = true;
+      return;
+    }
+
+    const syncedItem = {
+      ...cartItem,
+      name: product.name,
+      description: product.description,
+      price: product.price,
+      category: product.category,
+      image: sanitizeImageValue(product.image) || cartItem.image
+    };
+
+    if (
+      cartItem.name !== syncedItem.name ||
+      cartItem.description !== syncedItem.description ||
+      cartItem.price !== syncedItem.price ||
+      cartItem.category !== syncedItem.category ||
+      cartItem.image !== syncedItem.image
+    ) {
+      hasChanges = true;
+    }
+
+    nextCartItems.push(syncedItem);
+  });
+
+  if (nextCartItems.length !== cartItems.length) {
+    hasChanges = true;
+  }
+
+  if (hasChanges) {
+    cartItems = nextCartItems;
+    saveCart();
+    return true;
+  }
+
+  return false;
 }
 
-function getDishWord(count) {
-  const mod10 = count % 10;
-  const mod100 = count % 100;
-  if (mod10 === 1 && mod100 !== 11) return 'блюдо';
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'блюда';
-  return 'блюд';
+async function sendOrderToTelegram(order) {
+  if (
+    !TELEGRAM_BOT_TOKEN ||
+    TELEGRAM_BOT_TOKEN === '8002847512:AAFN6L6xzvdvRLdWUnxII5b0ooUppiLptnA' ||
+    !TELEGRAM_CHAT_ID ||
+    TELEGRAM_CHAT_ID === '758761122'
+  ) {
+    return;
+  }
+
+  const items = Array.isArray(order?.items) ? order.items : [];
+  const itemsText = items.length
+    ? items
+        .map(item => {
+          const quantity = Number(item?.quantity) || 0;
+          const priceValue = Number(item?.price) || 0;
+          return `• ${escapeHtml(item?.name || 'Без названия')} × ${quantity} — ${escapeHtml(
+            formatPrice(priceValue * quantity)
+          )}`;
+        })
+        .join('\n')
+    : '—';
+
+  const totalFormatted = formatPrice(order?.totalPrice ?? 0);
+  const timeFormatted = formatOrderDate(order?.createdAt);
+
+  const messageLines = [
+    '🍽 <b>Новый заказ</b>',
+    `👤 <b>Имя:</b> ${escapeHtml(order?.name || '—')}`,
+    `📞 <b>Телефон:</b> ${escapeHtml(order?.phone || '—')}`,
+    `📍 <b>Адрес:</b> ${escapeHtml(order?.address || '—')}`,
+    '',
+    '<b>Товары:</b>',
+    itemsText,
+    '',
+    `💰 <b>Итого:</b> ${escapeHtml(totalFormatted)}`,
+    timeFormatted ? `🕒 <b>Время:</b> ${escapeHtml(timeFormatted)}` : '',
+    order?.id ? `🆔 <b>ID:</b> ${escapeHtml(order.id)}` : ''
+  ].filter(Boolean);
+
+  const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: TELEGRAM_CHAT_ID,
+      text: messageLines.join('\n'),
+      parse_mode: 'HTML'
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Telegram API error: ${response.status}`);
+  }
 }
 
+function setFormLoading(form, isLoading, loadingText = 'Сохранение...') {
+  if (!form) return;
+  const elements = Array.from(form.elements);
+  const submitButton = form.querySelector('[type="submit"]');
+  elements.forEach(element => {
+    if (element instanceof HTMLElement) {
+      element.toggleAttribute('disabled', isLoading);
+    }
+  });
+  if (submitButton) {
+    if (isLoading) {
+      submitButton.dataset.originalText = submitButton.dataset.originalText || submitButton.textContent;
+      submitButton.textContent = loadingText;
+    } else {
+      submitButton.textContent = submitButton.dataset.originalText || submitButton.textContent;
+    }
+  }
+}
 function initHomePage() {
   let selectedCategory = 'Всё';
   let currentCategories = [];
@@ -691,7 +802,6 @@ function initHomePage() {
   renderMenu();
   updateArrowState();
 }
-
 function initCartPage() {
   const emptyState = document.getElementById('emptyCart');
   const cartContent = document.getElementById('cartContent');
@@ -904,7 +1014,6 @@ function initCartPage() {
         return;
       }
 
-      const timestamp = getAlmatyDateMetadata();
       const orderItems = cartItems.map(item => ({
         id: item.id,
         name: item.name,
@@ -917,17 +1026,15 @@ function initCartPage() {
         phone,
         address,
         items: orderItems,
-        totalPrice: getCartTotal(),
-        status: DEFAULT_ORDER_STATUS,
-        createdAt: timestamp.iso
+        totalPrice: getCartTotal()
       };
 
       try {
         showOrderFeedback();
         setOrderFormLoading(true);
-        const docRef = await addDoc(collection(db, 'orders'), orderPayload);
+        const savedOrder = await submitOrderRequest(orderPayload);
         try {
-          await sendOrderToTelegram({ ...orderPayload, id: docRef.id });
+          await sendOrderToTelegram({ ...orderPayload, ...savedOrder, createdAt: savedOrder?.createdAt || getAlmatyDateMetadata().iso });
         } catch (telegramError) {
           console.warn('Не удалось отправить заказ в Telegram:', telegramError);
         }
@@ -941,7 +1048,7 @@ function initCartPage() {
         }
       } catch (error) {
         console.error('Ошибка при оформлении заказа:', error);
-        showOrderFeedback('Не удалось отправить заказ. Попробуйте ещё раз.', 'error');
+        showOrderFeedback(error.message || 'Не удалось отправить заказ. Попробуйте ещё раз.', 'error');
       } finally {
         setOrderFormLoading(false);
       }
@@ -955,26 +1062,6 @@ function initCartPage() {
 
   renderCart();
 }
-
-function setFormLoading(form, isLoading, loadingText = 'Сохранение...') {
-  if (!form) return;
-  const elements = Array.from(form.elements);
-  const submitButton = form.querySelector('[type="submit"]');
-  elements.forEach(element => {
-    if (element instanceof HTMLElement) {
-      element.toggleAttribute('disabled', isLoading);
-    }
-  });
-  if (submitButton) {
-    if (isLoading) {
-      submitButton.dataset.originalText = submitButton.dataset.originalText || submitButton.textContent;
-      submitButton.textContent = loadingText;
-    } else {
-      submitButton.textContent = submitButton.dataset.originalText || submitButton.textContent;
-    }
-  }
-}
-
 function initAdminPage() {
   const authSection = document.getElementById('adminAuth');
   const adminPanel = document.getElementById('adminPanel');
@@ -1033,6 +1120,16 @@ function initAdminPage() {
         placeholder.selected = true;
       }
     }
+  }
+
+  function showNotification(message, type = 'success') {
+    if (!notification) return;
+    notification.textContent = message;
+    notification.dataset.type = type;
+    notification.classList.add('is-visible');
+    setTimeout(() => {
+      notification.classList.remove('is-visible');
+    }, 3000);
   }
 
   function renderCategoryList(list = []) {
@@ -1192,14 +1289,16 @@ function initAdminPage() {
     }
 
     if (categorySelect) {
-      const optionExists = Array.from(categorySelect.options).some(option => option.value === product.category);
-      if (!optionExists && product.category) {
+      const optionExists = Array.from(categorySelect.options).some(option => option.value === product.categoryId);
+      if (!optionExists && product.category && product.categoryId) {
         const option = document.createElement('option');
-        option.value = product.category;
+        option.value = product.categoryId;
         option.textContent = product.category;
         categorySelect.appendChild(option);
       }
-      categorySelect.value = product.category;
+      if (product.categoryId) {
+        categorySelect.value = product.categoryId;
+      }
     }
 
     const imageInput = productForm.productImage;
@@ -1214,7 +1313,6 @@ function initAdminPage() {
 
     showNotification(`Товар «${product.name}» загружен для редактирования`);
   }
-
   async function handleCategoryDelete(category) {
     if (!category?.id) return;
     const shouldDelete = typeof window !== 'undefined' && typeof window.confirm === 'function'
@@ -1223,14 +1321,16 @@ function initAdminPage() {
     if (!shouldDelete) return;
 
     try {
-      await deleteDoc(doc(db, 'categories', category.id));
+      await deleteCategoryRequest(category.id);
       if (editingCategory?.id === category.id) {
         categoryForm?.reset();
       }
       showNotification('Категория удалена');
+      await refreshCategories();
+      await refreshProducts();
     } catch (error) {
       console.error('Ошибка при удалении категории:', error);
-      showNotification('Не удалось удалить категорию', 'error');
+      showNotification(error.message || 'Не удалось удалить категорию', 'error');
     }
   }
 
@@ -1242,14 +1342,15 @@ function initAdminPage() {
     if (!shouldDelete) return;
 
     try {
-      await deleteDoc(doc(db, 'products', product.id));
+      await deleteProductRequest(product.id);
       if (editingProduct?.id === product.id) {
         productForm?.reset();
       }
       showNotification('Товар удалён');
+      await refreshProducts();
     } catch (error) {
       console.error('Ошибка при удалении товара:', error);
-      showNotification('Не удалось удалить товар', 'error');
+      showNotification(error.message || 'Не удалось удалить товар', 'error');
     }
   }
 
@@ -1292,16 +1393,6 @@ function initAdminPage() {
   menuToggle?.addEventListener('click', toggleSidebar);
   sidebarOverlay?.addEventListener('click', closeSidebar);
   closeSidebar();
-
-  function showNotification(message, type = 'success') {
-    if (!notification) return;
-    notification.textContent = message;
-    notification.dataset.type = type;
-    notification.classList.add('is-visible');
-    setTimeout(() => {
-      notification.classList.remove('is-visible');
-    }, 3000);
-  }
 
   function applyStatusStyles(card, badge, indicator, status) {
     const info = getOrderStatusInfo(status);
@@ -1472,13 +1563,18 @@ function initAdminPage() {
 
     controls.select.disabled = true;
     try {
-      await updateDoc(doc(db, 'orders', orderId), { status: nextStatus });
+      await updateOrderStatusRequest(orderId, nextStatus);
       controls.currentStatus = nextStatus;
       applyStatusStyles(controls.card, controls.badge, controls.indicator, nextStatus);
       showNotification(`Статус заказа обновлён на «${nextStatus}»`);
+      const orderIndex = ordersData.findIndex(order => order.id === orderId);
+      if (orderIndex !== -1) {
+        ordersData[orderIndex].status = nextStatus;
+        renderOrders();
+      }
     } catch (error) {
       console.error('Ошибка при обновлении статуса заказа:', error);
-      showNotification('Не удалось обновить статус заказа', 'error');
+      showNotification(error.message || 'Не удалось обновить статус заказа', 'error');
       controls.select.value = previousStatus;
       applyStatusStyles(controls.card, controls.badge, controls.indicator, previousStatus);
     } finally {
@@ -1508,6 +1604,22 @@ function initAdminPage() {
     }
   }
 
+  async function loadAdminData() {
+    setFormLoading(categoryForm, true, 'Загрузка...');
+    setFormLoading(productForm, true, 'Загрузка...');
+    try {
+      await Promise.all([refreshCategories(), refreshProducts()]);
+      ordersData = await fetchOrdersFromServer();
+      ordersInitialized = true;
+      if (!ORDER_STATUS_VALUES.includes(currentOrderFilter)) {
+        currentOrderFilter = DEFAULT_ORDER_STATUS;
+      }
+      renderOrders();
+    } finally {
+      setFormLoading(categoryForm, false);
+      setFormLoading(productForm, false);
+    }
+  }
   if (loginForm) {
     loginForm.addEventListener('submit', event => {
       event.preventDefault();
@@ -1523,6 +1635,10 @@ function initAdminPage() {
         authSection?.classList.add('is-hidden');
         adminPanel?.classList.remove('is-hidden');
         switchSection('categories');
+        loadAdminData().catch(error => {
+          console.error('Не удалось загрузить данные админки:', error);
+          showNotification('Не удалось загрузить данные', 'error');
+        });
       } else if (loginError) {
         loginError.textContent = 'Неверный логин или пароль';
       }
@@ -1534,6 +1650,12 @@ function initAdminPage() {
       const targetSection = button.dataset.section;
       if (targetSection) {
         switchSection(targetSection);
+        if (targetSection === 'orders' && !ordersInitialized) {
+          loadAdminData().catch(error => {
+            console.error('Не удалось загрузить данные админки:', error);
+            showNotification('Не удалось загрузить данные', 'error');
+          });
+        }
       }
     });
   });
@@ -1553,60 +1675,17 @@ function initAdminPage() {
 
   updateFilterButtons();
 
-  onSnapshot(
-    collection(db, 'orders'),
-    snapshot => {
-      ordersData = snapshot.docs
-        .map(docSnapshot => {
-          const data = docSnapshot.data();
-          const nameValue = typeof data?.name === 'string' ? data.name.trim() : data?.name;
-          const phoneValue = typeof data?.phone === 'string' ? data.phone.trim() : data?.phone;
-          const addressValue = typeof data?.address === 'string' ? data.address.trim() : data?.address;
-          const statusValue = ORDER_STATUS_VALUES.includes(data?.status) ? data.status : DEFAULT_ORDER_STATUS;
-          const items = Array.isArray(data?.items)
-            ? data.items.map(item => ({
-                id: item?.id || '',
-                name: typeof item?.name === 'string' ? item.name : String(item?.name ?? ''),
-                quantity: Number(item?.quantity) || 0,
-                price: Number(item?.price) || 0
-              }))
-            : [];
-
-          return {
-            id: docSnapshot.id,
-            name: nameValue || 'Без имени',
-            phone: phoneValue || '',
-            address: addressValue || '',
-            items,
-            totalPrice: Number(data?.totalPrice) || 0,
-            status: statusValue,
-            createdAt: data?.createdAt || null
-          };
-        })
-        .sort((a, b) => getOrderTimestamp(b.createdAt) - getOrderTimestamp(a.createdAt));
-
-      ordersInitialized = true;
-      if (!ORDER_STATUS_VALUES.includes(currentOrderFilter)) {
-        currentOrderFilter = DEFAULT_ORDER_STATUS;
-      }
-      renderOrders();
-    },
-    error => {
-      console.error('Ошибка при загрузке заказов:', error);
-    }
-  );
-
   onCategoriesChange(list => {
     if (categorySelect) {
       const currentValue = categorySelect.value;
       categorySelect.innerHTML = '<option value="" disabled selected>Выберите категорию</option>';
       list.forEach(category => {
         const option = document.createElement('option');
-        option.value = category.name;
+        option.value = category.id;
         option.textContent = category.name;
         categorySelect.appendChild(option);
       });
-      if (list.some(category => category.name === currentValue)) {
+      if (list.some(category => category.id === currentValue)) {
         categorySelect.value = currentValue;
         const placeholder = categorySelect.querySelector('option[value=""]');
         if (placeholder) {
@@ -1659,35 +1738,19 @@ function initAdminPage() {
       setFormLoading(categoryForm, true, isEditingCategory ? 'Сохранение...' : 'Загрузка...');
 
       try {
-        let imageData = editingCategory?.image || '';
-        if (imageFile) {
-          imageData = await prepareImageData(imageFile);
-        }
-        if (!imageData) {
-          showNotification('Загрузите изображение категории', 'error');
-          return;
-        }
-
         if (isEditingCategory) {
-          await updateDoc(doc(db, 'categories', editingCategory.id), {
-            name,
-            image: imageData,
-            updatedAt: serverTimestamp()
-          });
+          await updateCategoryRequest(editingCategory.id, name, imageFile);
           showNotification('Категория обновлена');
         } else {
-          await addDoc(collection(db, 'categories'), {
-            name,
-            image: imageData,
-            createdAt: serverTimestamp()
-          });
+          await createCategoryRequest(name, imageFile);
           showNotification('Успешно добавлено');
         }
 
         categoryForm.reset();
+        await refreshCategories();
       } catch (error) {
         console.error('Ошибка при сохранении категории:', error);
-        showNotification('Не удалось сохранить категорию', 'error');
+        showNotification(error.message || 'Не удалось сохранить категорию', 'error');
       } finally {
         setFormLoading(categoryForm, false);
       }
@@ -1699,15 +1762,15 @@ function initAdminPage() {
     productForm.addEventListener('submit', async event => {
       event.preventDefault();
       const formData = new FormData(productForm);
-      const productId = formData.get('productId')?.toString().trim();
+      const productIdValue = formData.get('productId')?.toString().trim();
       const name = formData.get('productName')?.toString().trim();
       const description = formData.get('productDescription')?.toString().trim();
       const priceValue = Number(formData.get('productPrice'));
-      const category = formData.get('productCategory')?.toString();
+      const categoryIdValue = formData.get('productCategory')?.toString();
       const imageFile = productForm.productImage?.files?.[0];
       const isEditingProduct = Boolean(editingProduct);
 
-      if (!productId || !name || !category || Number.isNaN(priceValue)) {
+      if (!name || Number.isNaN(priceValue)) {
         showNotification('Проверьте правильность заполнения формы', 'error');
         return;
       }
@@ -1715,7 +1778,11 @@ function initAdminPage() {
         showNotification('Загрузите изображение товара', 'error');
         return;
       }
-      if (isEditingProduct && editingProduct.id !== productId) {
+      if (!isEditingProduct && (!productIdValue || !Number.isInteger(Number(productIdValue)))) {
+        showNotification('Укажите числовой ID товара', 'error');
+        return;
+      }
+      if (isEditingProduct && editingProduct.id !== productIdValue) {
         showNotification('ID товара нельзя изменять при редактировании', 'error');
         return;
       }
@@ -1723,51 +1790,38 @@ function initAdminPage() {
       setFormLoading(productForm, true, isEditingProduct ? 'Сохранение...' : 'Загрузка...');
 
       try {
-        let imageData = editingProduct?.image || '';
-        if (imageFile) {
-          imageData = await prepareImageData(imageFile);
-        }
-        if (!imageData) {
-          showNotification('Загрузите изображение товара', 'error');
-          return;
-        }
-
         const payload = {
-          id: productId,
+          productId: productIdValue,
           name,
           description: description || '',
           price: priceValue,
-          category,
-          image: imageData
+          categoryId: categoryIdValue || '',
+          imageFile
         };
 
         if (isEditingProduct) {
-          await updateDoc(doc(db, 'products', editingProduct.id), {
-            ...payload,
-            updatedAt: serverTimestamp()
-          });
+          await updateProductRequest(editingProduct.id, payload);
           showNotification('Товар обновлён');
         } else {
-          await setDoc(doc(collection(db, 'products'), productId), {
-            ...payload,
-            createdAt: serverTimestamp()
-          });
+          await createProductRequest(payload);
           showNotification('Успешно добавлено');
         }
 
         productForm.reset();
+        await refreshProducts();
       } catch (error) {
         console.error('Ошибка при сохранении товара:', error);
-        showNotification('Не удалось сохранить товар', 'error');
+        showNotification(error.message || 'Не удалось сохранить товар', 'error');
       } finally {
         setFormLoading(productForm, false);
       }
     });
   }
 }
-
 function initialize() {
+  cartItems = loadCart();
   updateCartCount();
+
   const page = document.body?.dataset?.page;
   if (page === 'home') {
     initHomePage();
@@ -1778,6 +1832,9 @@ function initialize() {
   if (page === 'admin') {
     initAdminPage();
   }
+
+  refreshCategories();
+  refreshProducts();
 }
 
 if (document.readyState === 'loading') {
